@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tempahan Makanan Kokurikulum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --bg: #FBF6EC;
+    --bg-alt: #F3EAD3;
+    --paper: #FFFCF5;
+    --ink: #2B2419;
+    --ink-soft: #786E5A;
+    --ink-faint: #A89C84;
+    --border: #E3D6B6;
+    --primary: #1F4D3A;
+    --primary-light: #2F6B4F;
+    --primary-dark: #163829;
+    --accent: #E8A33D;
+    --accent-soft: #FBE7C2;
+    --pending: #C8862A;
+    --pending-bg: #FBEAD2;
+    --confirmed: #2F8F5B;
+    --confirmed-bg: #E1F2E8;
+    --rejected: #C44536;
+    --rejected-bg: #FBE6E2;
+    --claim-pending: #6B6354;
+    --claim-pending-bg: #EFE9D8;
+    --claim-done: #1F7A7A;
+    --claim-done-bg: #DDF0EF;
+    --shadow: 0 1px 2px rgba(43,36,25,.05), 0 8px 24px -12px rgba(43,36,25,.18);
+    --radius: 14px;
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 10% 0%, var(--bg-alt) 0%, transparent 45%),
+      var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:var(--font-display); margin:0; letter-spacing:-0.01em;}
+  button{font-family:inherit; cursor:pointer;}
+  input,select,textarea{font-family:inherit; font-size:14px;}
+  .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 22px; max-width:1180px; margin:0 auto;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:42px; height:42px; border-radius:11px;
+    background:linear-gradient(155deg, var(--primary), var(--primary-dark));
+    display:flex; align-items:center; justify-content:center;
+    color:var(--accent-soft); font-size:20px; flex-shrink:0;
+    box-shadow:var(--shadow);
+  }
+  .brand-text h1{font-size:19px; color:var(--ink); font-weight:600;}
+  .brand-text p{margin:0; font-size:12px; color:var(--ink-soft);}
+  .role-switch{
+    display:flex; align-items:center; gap:8px;
+    background:var(--paper); border:1px solid var(--border);
+    padding:5px; border-radius:999px; box-shadow:var(--shadow);
+  }
+  .role-switch button{
+    border:none; background:transparent; padding:8px 16px;
+    border-radius:999px; font-size:13px; font-weight:600; color:var(--ink-soft);
+    transition:.15s;
+  }
+  .role-switch button.active{background:var(--primary); color:#fff;}
+
+  main{max-width:1180px; margin:0 auto; padding:6px 22px 80px;}
+
+  /* ---------- setup banner ---------- */
+  .setup-banner{
+    background:var(--rejected-bg); border:1px solid var(--rejected);
+    color:#7A2E22; padding:14px 18px; border-radius:var(--radius);
+    font-size:13px; margin-bottom:18px; line-height:1.6;
+  }
+  .setup-banner code{background:#fff; padding:1px 6px; border-radius:5px; font-family:var(--font-mono); font-size:12px;}
+
+  /* ---------- guru layout ---------- */
+  .guru-grid{display:grid; grid-template-columns:380px 1fr; gap:22px; align-items:start;}
+  @media (max-width:860px){ .guru-grid{grid-template-columns:1fr;} }
+
+  .panel{
+    background:var(--paper); border:1px solid var(--border);
+    border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:22px;
+  }
+  .panel + .panel{margin-top:18px;}
+  .panel-title{font-size:17px; font-weight:600; margin-bottom:4px;}
+  .panel-sub{font-size:12.5px; color:var(--ink-soft); margin:0 0 18px;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+  .field input[type=text], .field input[type=date], .field input[type=time], .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:9px;
+    background:#fff; color:var(--ink); outline:none; transition:.15s;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(31,77,58,.12);}
+  .field textarea{resize:vertical; min-height:64px;}
+
+  .menu-list{display:flex; flex-direction:column; gap:8px; margin-bottom:6px;}
+  .menu-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:9px 12px; border:1px solid var(--border); border-radius:10px; background:#fff;
+  }
+  .menu-row .nama{font-size:13.5px; font-weight:500;}
+  .qty-stepper{display:flex; align-items:center; gap:9px;}
+  .qty-stepper button{
+    width:26px; height:26px; border-radius:7px; border:1px solid var(--border);
+    background:var(--bg-alt); font-size:15px; font-weight:700; color:var(--primary);
+    display:flex; align-items:center; justify-content:center; line-height:1;
+  }
+  .qty-stepper button:hover{background:var(--accent-soft);}
+  .qty-stepper span{min-width:18px; text-align:center; font-family:var(--font-mono); font-size:13px; font-weight:600;}
+  .menu-empty{font-size:12.5px; color:var(--ink-faint); padding:10px 0;}
+
+  .custom-add-row{display:flex; gap:8px; margin-bottom:10px;}
+  .custom-add-row input[type=text]{flex:1;}
+  .custom-add-row input[type=text].qty-mini{flex:0 0 64px; text-align:center;}
+  .btn-add-custom{
+    flex-shrink:0; border:1px dashed var(--primary); background:transparent; color:var(--primary);
+    padding:0 14px; border-radius:9px; font-size:13px; font-weight:600;
+  }
+  .btn-add-custom:hover{background:var(--accent-soft); border-style:solid;}
+  .custom-chip-list{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:6px;}
+  .custom-chip{
+    display:flex; align-items:center; gap:7px; background:var(--accent-soft);
+    border:1px solid var(--accent); color:#7A5314; padding:5px 6px 5px 11px;
+    border-radius:999px; font-size:12.5px; font-weight:500;
+  }
+  .custom-chip button{
+    background:rgba(0,0,0,.08); border:none; width:18px; height:18px; border-radius:50%;
+    color:#7A5314; font-size:11px; line-height:1; display:flex; align-items:center; justify-content:center;
+  }
+
+  .btn{
+    border:none; border-radius:10px; padding:11px 18px; font-size:13.5px; font-weight:600;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px; transition:.15s;
+  }
+  .btn-primary{background:var(--primary); color:#fff; width:100%;}
+  .btn-primary:hover{background:var(--primary-light);}
+  .btn-primary:disabled{background:var(--ink-faint); cursor:not-allowed;}
+  .btn-ghost{background:transparent; color:var(--primary); border:1px solid var(--border);}
+  .btn-ghost:hover{background:var(--bg-alt);}
+  .btn-confirm{background:var(--confirmed); color:#fff;}
+  .btn-confirm:hover{filter:brightness(1.08);}
+  .btn-reject{background:transparent; color:var(--rejected); border:1px solid var(--rejected);}
+  .btn-reject:hover{background:var(--rejected-bg);}
+  .btn-claim{background:var(--claim-done); color:#fff;}
+  .btn-unclaim{background:transparent; color:var(--claim-pending); border:1px solid var(--ink-faint);}
+  .btn-sm{padding:7px 13px; font-size:12.5px;}
+  .btn-block{width:100%;}
+
+  /* ---------- order list / cards ---------- */
+  .list-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;}
+  .list-toolbar{display:flex; gap:8px; flex-wrap:wrap;}
+  .list-toolbar input[type=text], .list-toolbar select{
+    padding:8px 11px; border:1px solid var(--border); border-radius:9px; background:#fff; font-size:13px;
+  }
+  .card-grid{display:flex; flex-direction:column; gap:12px;}
+  .order-card{
+    background:var(--paper); border:1px solid var(--border); border-radius:13px;
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .order-card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;}
+  .order-card-top h3{font-size:15.5px; font-weight:600;}
+  .order-meta{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+  .badge-row{display:flex; gap:6px; flex-wrap:wrap;}
+  .badge{
+    font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px;
+    letter-spacing:.02em; white-space:nowrap;
+  }
+  .badge-pending{background:var(--pending-bg); color:var(--pending);}
+  .badge-confirmed{background:var(--confirmed-bg); color:var(--confirmed);}
+  .badge-rejected{background:var(--rejected-bg); color:var(--rejected);}
+  .badge-claim-pending{background:var(--claim-pending-bg); color:var(--claim-pending);}
+  .badge-claim-done{background:var(--claim-done-bg); color:var(--claim-done);}
+
+  .item-tags{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
+  .item-tag{
+    font-family:var(--font-mono); font-size:11.5px; background:var(--bg-alt);
+    border:1px solid var(--border); padding:3px 9px; border-radius:7px; color:var(--ink);
+  }
+  .order-note{font-size:12.5px; color:var(--ink-soft); font-style:italic; margin:6px 0;}
+  .reject-reason{font-size:12.5px; color:var(--rejected); margin:6px 0; background:var(--rejected-bg); padding:7px 10px; border-radius:8px;}
+  .order-card-actions{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .empty-state{
+    text-align:center; padding:46px 20px; color:var(--ink-soft); font-size:13.5px;
+    border:1.5px dashed var(--border); border-radius:14px;
+  }
+  .empty-state strong{display:block; color:var(--ink); font-size:15px; margin-bottom:5px; font-family:var(--font-display); font-weight:600;}
+
+  /* ---------- kantin tabs ---------- */
+  .kantin-header{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:18px;}
+  .tabs{display:flex; gap:6px; background:var(--bg-alt); padding:5px; border-radius:12px; flex-wrap:wrap;}
+  .tabs button{
+    border:none; background:transparent; padding:9px 15px; border-radius:9px;
+    font-size:13px; font-weight:600; color:var(--ink-soft);
+  }
+  .tabs button.active{background:var(--paper); color:var(--primary); box-shadow:var(--shadow);}
+
+  /* ---------- pin gate ---------- */
+  .pin-gate{max-width:360px; margin:60px auto; text-align:center;}
+  .pin-gate .panel{padding:32px 26px;}
+  .pin-gate h2{font-size:20px; margin-bottom:6px;}
+  .pin-gate p{color:var(--ink-soft); font-size:13px; margin:0 0 20px;}
+  .pin-input{
+    width:100%; text-align:center; letter-spacing:.5em; font-size:22px; font-family:var(--font-mono);
+    padding:13px; border:1px solid var(--border); border-radius:10px; margin-bottom:14px;
+  }
+  .pin-error{color:var(--rejected); font-size:12.5px; margin-bottom:10px; min-height:16px;}
+
+  /* ---------- menu manage ---------- */
+  .menu-manage-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:11px 14px; border:1px solid var(--border); border-radius:10px; background:#fff; margin-bottom:8px;
+  }
+  .menu-manage-row.inactive{opacity:.5;}
+  .menu-manage-row .nama{font-weight:500; font-size:13.5px;}
+  .menu-manage-actions{display:flex; gap:6px; align-items:center;}
+  .toggle-pill{
+    border:1px solid var(--border); background:#fff; border-radius:999px; padding:5px 12px;
+    font-size:11.5px; font-weight:600; color:var(--ink-soft);
+  }
+  .toggle-pill.on{background:var(--confirmed-bg); color:var(--confirmed); border-color:var(--confirmed);}
+  .icon-btn{
+    width:28px; height:28px; border-radius:8px; border:1px solid var(--border); background:#fff;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:13px;
+  }
+  .icon-btn:hover{background:var(--rejected-bg); color:var(--rejected); border-color:var(--rejected);}
+  .add-menu-form{display:flex; gap:8px; margin-bottom:18px;}
+  .add-menu-form input{flex:1;}
+
+  /* ---------- modal / receipt ---------- */
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(43,36,25,.55); backdrop-filter:blur(2px);
+    display:flex; align-items:center; justify-content:center; padding:24px; z-index:100;
+  }
+  .hidden{display:none !important;}
+  .resit-wrap{max-width:380px; width:100%; max-height:88vh; overflow-y:auto;}
+  .resit-paper{
+    position:relative; background:var(--paper); padding:30px 26px 24px;
+    border-radius:4px; box-shadow:0 20px 60px -10px rgba(0,0,0,.35);
+  }
+  .resit-paper::before, .resit-paper::after{
+    content:""; position:absolute; left:0; right:0; height:14px;
+    background-image:radial-gradient(circle at 8px 8px, transparent 7px, rgba(43,36,25,.55) 7px);
+    background-size:16px 16px; background-repeat:repeat-x;
+  }
+  .resit-paper::before{top:-7px;}
+  .resit-paper::after{bottom:-7px; transform:rotate(180deg);}
+  .resit-head{text-align:center; margin-bottom:16px;}
+  .resit-head .sekolah{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:4px;}
+  .resit-head h2{font-size:19px; font-weight:600;}
+  .resit-no{font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); margin-top:5px;}
+  .resit-divider{border-top:2px dashed var(--border); margin:14px 0;}
+  .resit-row{display:flex; justify-content:space-between; font-size:13px; padding:3px 0; gap:14px;}
+  .resit-row span:first-child{color:var(--ink-soft);}
+  .resit-row span:last-child{font-weight:600; text-align:right;}
+  .resit-items{font-family:var(--font-mono); font-size:12.5px; margin:10px 0;}
+  .resit-items div{display:flex; justify-content:space-between; padding:3px 0;}
+  .resit-status-line{text-align:center; margin:14px 0 6px;}
+  .resit-foot{text-align:center; font-size:11px; color:var(--ink-faint); margin-top:16px; line-height:1.6;}
+  .resit-actions{display:flex; gap:8px; margin-top:18px;}
+  @media print{
+    body *{visibility:hidden;}
+    #resitModal, #resitModal *{visibility:visible;}
+    #resitModal{position:fixed; inset:0; background:#fff; padding:40px; backdrop-filter:none;}
+    .resit-actions{display:none;}
+    .resit-wrap{max-height:none;}
+  }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 20px; border-radius:10px; font-size:13px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25); opacity:0; pointer-events:none; transition:.25s; z-index:200;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+  .toast.err{background:var(--rejected);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">🍱</div>
+    <div class="brand-text">
+      <h1>Tempahan Makanan Kokurikulum</h1>
+      <p id="schoolLabel">SK Sri Aman</p>
+    </div>
+  </div>
+  <div class="role-switch">
+    <button id="btnRoleGuru" class="active" onclick="setRole('guru')">Guru</button>
+    <button id="btnRoleKantin" onclick="setRole('kantin')">Pengusaha Kantin</button>
+  </div>
+</div>
+
+<main>
+  <div id="setupBanner" class="setup-banner hidden">
+    ⚠️ Konfigurasi Firebase belum diisi. Buka fail HTML ini dengan editor teks, cari bahagian <code>firebaseConfig</code> berhampiran bahagian atas tag &lt;script&gt;, dan gantikan dengan konfigurasi projek Firebase anda sendiri (daripada Firebase Console → Project Settings). App tidak akan menyimpan data sehingga ini selesai.
+  </div>
+
+  <!-- ===================== GURU VIEW ===================== -->
+  <div id="guruView">
+    <div class="guru-grid">
+      <div class="panel">
+        <div class="panel-title">Buat Tempahan Baharu</div>
+        <p class="panel-sub">Isi maklumat di bawah dan hantar untuk pengesahan pengusaha kantin.</p>
+
+        <div class="field">
+          <label for="inNamaGuru">Nama Guru</label>
+          <input type="text" id="inNamaGuru" placeholder="cth. Cikgu Aiman">
+        </div>
+        <div class="field">
+          <label for="inAktiviti">Aktiviti / Unit Kokurikulum</label>
+          <input type="text" id="inAktiviti" placeholder="cth. Bola Jaring / Pengakap">
+        </div>
+        <div class="field">
+          <label for="inTarikh">Tarikh Diperlukan</label>
+          <input type="date" id="inTarikh">
+        </div>
+
+        <div class="field">
+          <label>Pilih dari Menu</label>
+          <div id="menuPickerList" class="menu-list"></div>
+        </div>
+
+        <div class="field">
+          <label>Tambah Item Lain (tiada dalam menu)</label>
+          <div class="custom-add-row">
+            <input type="text" id="inCustomNama" placeholder="Nama item">
+            <input type="text" id="inCustomQty" class="qty-mini" placeholder="Kuantiti" value="1">
+            <button type="button" class="btn-add-custom" onclick="addCustomItem()">+ Tambah</button>
+          </div>
+          <div id="customChipList" class="custom-chip-list"></div>
+        </div>
+
+        <div class="field">
+          <label for="inCatatan">Catatan (pilihan)</label>
+          <textarea id="inCatatan" placeholder="cth. Tanpa pedas, hantar ke padang pukul 9.30 pagi"></textarea>
+        </div>
+
+        <button class="btn btn-primary" onclick="submitOrder()">Hantar Tempahan</button>
+      </div>
+
+      <div>
+        <div class="list-header">
+          <div class="panel-title" style="margin-bottom:0;">Tempahan Saya</div>
+        </div>
+        <div id="guruOrderList" class="card-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== KANTIN PIN GATE ===================== -->
+  <div id="kantinGate" class="pin-gate hidden">
+    <div class="panel">
+      <h2>Akses Pengusaha Kantin</h2>
+      <p>Masukkan PIN untuk mengesahkan tempahan &amp; urus rekod.</p>
+      <input type="password" inputmode="numeric" maxlength="8" id="inPin" class="pin-input" placeholder="••••">
+      <div id="pinError" class="pin-error"></div>
+      <button class="btn btn-primary" onclick="checkPin()">Log Masuk</button>
+    </div>
+  </div>
+
+  <!-- ===================== KANTIN VIEW ===================== -->
+  <div id="kantinView" class="hidden">
+    <div class="kantin-header">
+      <div class="tabs">
+        <button id="tabBtn-menunggu" onclick="setKantinTab('menunggu')" class="active">Menunggu Pengesahan</button>
+        <button id="tabBtn-rekod" onclick="setKantinTab('rekod')">Rekod Tempahan</button>
+        <button id="tabBtn-menu" onclick="setKantinTab('menu')">Urus Menu</button>
+        <button id="tabBtn-tetapan" onclick="setKantinTab('tetapan')">Tetapan</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="logoutKantin()">Log Keluar</button>
+    </div>
+
+    <div id="kantinTab-menunggu">
+      <div id="kantinPendingList" class="card-grid"></div>
+    </div>
+
+    <div id="kantinTab-rekod" class="hidden">
+      <div class="list-header">
+        <div class="list-toolbar">
+          <input type="text" id="rekodSearch" placeholder="Cari nama guru / aktiviti..." oninput="renderKantinRekod()">
+          <select id="rekodFilterClaim" onchange="renderKantinRekod()">
+            <option value="semua">Semua Status Claim</option>
+            <option value="belum">Belum Diambil</option>
+            <option value="sudah">Sudah Diambil</option>
+          </select>
+        </div>
+      </div>
+      <div id="kantinRekodList" class="card-grid"></div>
+    </div>
+
+    <div id="kantinTab-menu" class="hidden">
+      <div class="panel" style="max-width:560px;">
+        <div class="panel-title">Senarai Menu</div>
+        <p class="panel-sub">Item yang "Aktif" sahaja akan dipaparkan kepada guru semasa membuat tempahan.</p>
+        <div class="add-menu-form">
+          <input type="text" id="inNewMenuNama" placeholder="Nama item baharu, cth. Nasi Lemak">
+          <button class="btn btn-primary" style="width:auto;" onclick="addMenuItem()">+ Tambah</button>
+        </div>
+        <div id="menuManageList"></div>
+      </div>
+    </div>
+
+    <div id="kantinTab-tetapan" class="hidden">
+      <div class="panel" style="max-width:420px;">
+        <div class="panel-title">Tukar PIN Akses Kantin</div>
+        <p class="panel-sub">PIN ini diperlukan untuk log masuk ke mod Pengusaha Kantin.</p>
+        <div class="field">
+          <label for="inPinLama">PIN Semasa</label>
+          <input type="password" id="inPinLama" placeholder="••••">
+        </div>
+        <div class="field">
+          <label for="inPinBaru">PIN Baharu</label>
+          <input type="password" id="inPinBaru" placeholder="••••">
+        </div>
+        <button class="btn btn-primary" onclick="changePin()">Kemaskini PIN</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ===================== RESIT MODAL ===================== -->
+<div id="resitModal" class="modal-backdrop hidden">
+  <div class="resit-wrap">
+    <div class="resit-paper">
+      <div class="resit-head">
+        <div class="sekolah" id="resitSekolah">SK Sri Aman</div>
+        <h2>Resit Tempahan Makanan</h2>
+        <div class="resit-no" id="resitNo">RST-000000</div>
+      </div>
+      <div class="resit-divider"></div>
+      <div class="resit-row"><span>Guru</span><span id="resitGuru">-</span></div>
+      <div class="resit-row"><span>Aktiviti</span><span id="resitAktiviti">-</span></div>
+      <div class="resit-row"><span>Tarikh Diperlukan</span><span id="resitTarikh">-</span></div>
+      <div class="resit-divider"></div>
+      <div class="resit-items" id="resitItems"></div>
+      <div class="resit-divider"></div>
+      <div class="resit-row"><span>Catatan</span><span id="resitCatatan">-</span></div>
+      <div class="resit-row"><span>Disahkan pada</span><span id="resitDisahkan">-</span></div>
+      <div class="resit-status-line">
+        <span class="badge badge-confirmed">DISAHKAN OLEH KANTIN</span>
+        <div style="margin-top:8px;"><span id="resitClaimBadge" class="badge badge-claim-pending">BELUM DIAMBIL</span></div>
+      </div>
+      <div class="resit-foot">Resit ini dijana secara digital sebagai bukti tempahan sah.<br>Simpan / cetak untuk rujukan anda.</div>
+      <div class="resit-actions">
+        <button class="btn btn-ghost btn-block" onclick="closeResit()">Tutup</button>
+        <button class="btn btn-primary btn-block" onclick="window.print()">🖨 Cetak Resit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ============================================================
+   KONFIGURASI — ubah bahagian ini ikut keperluan sekolah anda
+   ============================================================ */
+const APP_CONFIG = {
+  schoolName: "SK Sri Aman",
+  defaultPin: "1234"
+};
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBSWbXoKgQt1E8xvJa9zaKyw3e9V_EMxAE",
+  authDomain: "sk-sri-aman-database.firebaseapp.com",
+  databaseURL: "https://sk-sri-aman-database-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "sk-sri-aman-database",
+  storageBucket: "sk-sri-aman-database.firebasestorage.app",
+  messagingSenderId: "810640165554",
+  appId: "1:810640165554:web:b3ad2dc6f1583ec2a657ab"
+};
+
+// Semua data app ini disimpan di bawah node "tempahanMakanan" supaya tidak
+// bertembung dengan data app sekolah lain yang berkongsi database yang sama.
+const DB_ROOT = "tempahanMakanan";
+
+document.getElementById('schoolLabel').textContent = APP_CONFIG.schoolName;
+document.getElementById('resitSekolah').textContent = APP_CONFIG.schoolName;
+
+let db = null;
+let firebaseReady = false;
+try{
+  if(firebaseConfig.projectId === "GANTI"){
+    document.getElementById('setupBanner').classList.remove('hidden');
+  } else {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    firebaseReady = true;
+  }
+}catch(e){
+  console.error("Firebase init error:", e);
+  document.getElementById('setupBanner').classList.remove('hidden');
+}
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let menuItems = {};      // id -> {nama, aktif}
+let orders = {};         // id -> order
+let currentRole = 'guru';
+let currentKantinTab = 'menunggu';
+let customDraft = [];    // [{nama, kuantiti}]
+let kantinPin = APP_CONFIG.defaultPin;
+
+const MONTHS = ["Januari","Februari","Mac","April","Mei","Jun","Julai","Ogos","September","Oktober","November","Disember"];
+
+function formatTarikh(dateStr){
+  if(!dateStr) return "-";
+  const parts = dateStr.split("-");
+  if(parts.length !== 3) return dateStr;
+  const [y,m,d] = parts;
+  return `${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${y}`;
+}
+function formatMasaPenuh(ts){
+  if(!ts) return "-";
+  const dt = new Date(ts);
+  const tarikh = `${dt.getDate()} ${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
+  let h = dt.getHours();
+  const mnt = dt.getMinutes().toString().padStart(2,'0');
+  const ampm = h >= 12 ? 'PTG' : 'PG';
+  h = h % 12; if(h === 0) h = 12;
+  return `${tarikh}, ${h}:${mnt} ${ampm}`;
+}
+function escapeHtml(s){
+  return (s || "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function showToast(msg, isErr){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+/* ============================================================
+   FIREBASE LISTENERS
+   ============================================================ */
+if(firebaseReady){
+  db.ref(`${DB_ROOT}/menu`).on('value', snap => {
+    menuItems = snap.val() || {};
+    renderMenuPicker();
+    renderMenuManage();
+  });
+  db.ref(`${DB_ROOT}/tempahan`).on('value', snap => {
+    orders = snap.val() || {};
+    renderGuruOrders();
+    renderKantinPending();
+    renderKantinRekod();
+  });
+  db.ref(`${DB_ROOT}/tetapan/pin`).once('value', snap => {
+    if(snap.exists()) kantinPin = snap.val();
+    else db.ref(`${DB_ROOT}/tetapan/pin`).set(APP_CONFIG.defaultPin);
+  });
+}
+
+/* ============================================================
+   ROLE / TAB SWITCHING
+   ============================================================ */
+function setRole(role){
+  currentRole = role;
+  document.getElementById('btnRoleGuru').classList.toggle('active', role==='guru');
+  document.getElementById('btnRoleKantin').classList.toggle('active', role==='kantin');
+  document.getElementById('guruView').classList.toggle('hidden', role!=='guru');
+
+  if(role === 'kantin'){
+    const authed = sessionStorage.getItem('kantinAuth') === 'true';
+    document.getElementById('kantinGate').classList.toggle('hidden', authed);
+    document.getElementById('kantinView').classList.toggle('hidden', !authed);
+    if(!authed) setTimeout(() => document.getElementById('inPin')?.focus(), 50);
+  } else {
+    document.getElementById('kantinGate').classList.add('hidden');
+    document.getElementById('kantinView').classList.add('hidden');
+  }
+}
+
+function checkPin(){
+  const val = document.getElementById('inPin').value.trim();
+  if(val === kantinPin){
+    sessionStorage.setItem('kantinAuth','true');
+    document.getElementById('pinError').textContent = '';
+    document.getElementById('inPin').value = '';
+    setRole('kantin');
+  } else {
+    document.getElementById('pinError').textContent = 'PIN salah. Sila cuba lagi.';
+  }
+}
+document.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && document.activeElement?.id === 'inPin') checkPin();
+});
+
+function logoutKantin(){
+  sessionStorage.removeItem('kantinAuth');
+  setRole('guru');
+}
+
+function setKantinTab(tab){
+  currentKantinTab = tab;
+  ['menunggu','rekod','menu','tetapan'].forEach(t => {
+    document.getElementById('tabBtn-'+t).classList.toggle('active', t===tab);
+    document.getElementById('kantinTab-'+t).classList.toggle('hidden', t!==tab);
+  });
+}
+
+/* ============================================================
+   GURU: FORM TEMPAHAN
+   ============================================================ */
+const savedNama = localStorage.getItem('tempahMakanan_namaGuru');
+if(savedNama) document.getElementById('inNamaGuru').value = savedNama;
+document.getElementById('inTarikh').min = new Date().toISOString().slice(0,10);
+
+let menuQty = {}; // id -> qty (local draft)
+
+function renderMenuPicker(){
+  const wrap = document.getElementById('menuPickerList');
+  const activeItems = Object.entries(menuItems).filter(([id,m]) => m.aktif !== false);
+  if(activeItems.length === 0){
+    wrap.innerHTML = `<div class="menu-empty">Belum ada item menu. Pengusaha kantin boleh tambah menu di mod "Pengusaha Kantin" → "Urus Menu".</div>`;
+    return;
+  }
+  wrap.innerHTML = activeItems.map(([id,m]) => {
+    const qty = menuQty[id] || 0;
+    return `<div class="menu-row">
+      <span class="nama">${escapeHtml(m.nama)}</span>
+      <div class="qty-stepper">
+        <button type="button" onclick="changeMenuQty('${id}',-1)">−</button>
+        <span>${qty}</span>
+        <button type="button" onclick="changeMenuQty('${id}',1)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function changeMenuQty(id, delta){
+  const cur = menuQty[id] || 0;
+  const next = Math.max(0, cur + delta);
+  menuQty[id] = next;
+  renderMenuPicker();
+}
+
+function addCustomItem(){
+  const nama = document.getElementById('inCustomNama').value.trim();
+  const qtyRaw = document.getElementById('inCustomQty').value.trim();
+  const qty = parseInt(qtyRaw) || 1;
+  if(!nama){ showToast('Sila masukkan nama item.', true); return; }
+  customDraft.push({nama, kuantiti: qty});
+  document.getElementById('inCustomNama').value = '';
+  document.getElementById('inCustomQty').value = '1';
+  renderCustomChips();
+}
+function removeCustomItem(idx){
+  customDraft.splice(idx,1);
+  renderCustomChips();
+}
+function renderCustomChips(){
+  const wrap = document.getElementById('customChipList');
+  wrap.innerHTML = customDraft.map((c,i) =>
+    `<span class="custom-chip">${c.kuantiti}× ${escapeHtml(c.nama)} <button type="button" onclick="removeCustomItem(${i})">×</button></span>`
+  ).join('');
+}
+
+function submitOrder(){
+  const namaGuru = document.getElementById('inNamaGuru').value.trim();
+  const aktiviti = document.getElementById('inAktiviti').value.trim();
+  const tarikh = document.getElementById('inTarikh').value;
+  const catatan = document.getElementById('inCatatan').value.trim();
+
+  if(!namaGuru){ showToast('Sila isi nama guru.', true); return; }
+  if(!aktiviti){ showToast('Sila isi aktiviti / unit kokurikulum.', true); return; }
+  if(!tarikh){ showToast('Sila pilih tarikh diperlukan.', true); return; }
+
+  const items = [];
+  Object.entries(menuQty).forEach(([id, qty]) => {
+    if(qty > 0 && menuItems[id]) items.push({nama: menuItems[id].nama, kuantiti: qty});
+  });
+  customDraft.forEach(c => items.push({nama: c.nama, kuantiti: c.kuantiti}));
+
+  if(items.length === 0){ showToast('Sila pilih sekurang-kurangnya satu item makanan.', true); return; }
+
+  if(!firebaseReady){ showToast('Firebase belum dikonfigurasi. Lihat notis di atas.', true); return; }
+
+  const order = {
+    guruNama: namaGuru,
+    aktiviti: aktiviti,
+    tarikhPerlu: tarikh,
+    items: items,
+    catatan: catatan,
+    status: 'menunggu',
+    claimStatus: 'belum',
+    dicipta: firebase.database.ServerValue.TIMESTAMP
+  };
+
+  db.ref(`${DB_ROOT}/tempahan`).push(order)
+    .then(() => {
+      localStorage.setItem('tempahMakanan_namaGuru', namaGuru);
+      showToast('Tempahan berjaya dihantar! Menunggu pengesahan kantin.');
+      document.getElementById('inAktiviti').value = '';
+      document.getElementById('inTarikh').value = '';
+      document.getElementById('inCatatan').value = '';
+      menuQty = {};
+      customDraft = [];
+      renderMenuPicker();
+      renderCustomChips();
+    })
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+/* ============================================================
+   GURU: SENARAI TEMPAHAN SAYA
+   ============================================================ */
+function statusBadge(status){
+  if(status === 'menunggu') return `<span class="badge badge-pending">MENUNGGU PENGESAHAN</span>`;
+  if(status === 'disahkan') return `<span class="badge badge-confirmed">DISAHKAN</span>`;
+  if(status === 'ditolak') return `<span class="badge badge-rejected">DITOLAK</span>`;
+  return '';
+}
+function claimBadge(claimStatus){
+  if(claimStatus === 'sudah') return `<span class="badge badge-claim-done">SUDAH DIAMBIL</span>`;
+  return `<span class="badge badge-claim-pending">BELUM DIAMBIL</span>`;
+}
+function itemTagsHtml(items){
+  return `<div class="item-tags">${(items||[]).map(it => `<span class="item-tag">${it.kuantiti}× ${escapeHtml(it.nama)}</span>`).join('')}</div>`;
+}
+
+function renderGuruOrders(){
+  const wrap = document.getElementById('guruOrderList');
+  const namaFilter = (document.getElementById('inNamaGuru').value || localStorage.getItem('tempahMakanan_namaGuru') || '').trim().toLowerCase();
+
+  let list = Object.entries(orders);
+  if(namaFilter){
+    list = list.filter(([id,o]) => (o.guruNama||'').trim().toLowerCase() === namaFilter);
+  }
+  list.sort((a,b) => (b[1].dicipta||0) - (a[1].dicipta||0));
+
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state"><strong>Belum ada tempahan</strong>${namaFilter ? 'Tiada rekod tempahan untuk nama ini lagi.' : 'Isi nama guru di borang sebelah untuk lihat tempahan anda di sini.'}</div>`;
+    return;
+  }
+
+  wrap.innerHTML = list.map(([id,o]) => {
+    let actions = '';
+    if(o.status === 'disahkan'){
+      actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button></div>`;
+    }
+    let rejectHtml = '';
+    if(o.status === 'ditolak' && o.sebabTolak){
+      rejectHtml = `<div class="reject-reason">Sebab ditolak: ${escapeHtml(o.sebabTolak)}</div>`;
+    }
+    return `<div class="order-card">
+      <div class="order-card-top">
+        <div>
+          <h3>${escapeHtml(o.aktiviti)}</h3>
+          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)}</div>
+        </div>
+        <div class="badge-row">${statusBadge(o.status)}${o.status==='disahkan' ? claimBadge(o.claimStatus) : ''}</div>
+      </div>
+      ${itemTagsHtml(o.items)}
+      ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
+      ${rejectHtml}
+      ${actions}
+    </div>`;
+  }).join('');
+}
+document.getElementById('inNamaGuru').addEventListener('input', renderGuruOrders);
+
+/* ============================================================
+   KANTIN: MENUNGGU PENGESAHAN
+   ============================================================ */
+function renderKantinPending(){
+  const wrap = document.getElementById('kantinPendingList');
+  let list = Object.entries(orders).filter(([id,o]) => o.status === 'menunggu');
+  list.sort((a,b) => (a[1].dicipta||0) - (b[1].dicipta||0));
+
+  document.getElementById('tabBtn-menunggu').textContent = `Menunggu Pengesahan (${list.length})`;
+
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state"><strong>Tiada tempahan menunggu</strong>Semua tempahan setakat ini telah diproses.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(([id,o]) => `<div class="order-card">
+      <div class="order-card-top">
+        <div>
+          <h3>${escapeHtml(o.aktiviti)}</h3>
+          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)} · Dihantar ${formatMasaPenuh(o.dicipta)}</div>
+        </div>
+        <div class="badge-row">${statusBadge(o.status)}</div>
+      </div>
+      ${itemTagsHtml(o.items)}
+      ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
+      <div class="order-card-actions">
+        <button class="btn btn-confirm btn-sm" onclick="confirmOrder('${id}')">✓ Sahkan</button>
+        <button class="btn btn-reject btn-sm" onclick="rejectOrder('${id}')">✕ Tolak</button>
+      </div>
+    </div>`).join('');
+}
+
+function generateResitNo(){
+  const now = new Date();
+  const ymd = now.toISOString().slice(0,10).replace(/-/g,'');
+  const rand = Math.random().toString(36).slice(2,6).toUpperCase();
+  return `RST-${ymd}-${rand}`;
+}
+
+function confirmOrder(id){
+  if(!confirm('Sahkan tempahan ini? Resit digital akan dijana secara automatik.')) return;
+  db.ref(`${DB_ROOT}/tempahan/`+id).update({
+    status: 'disahkan',
+    claimStatus: 'belum',
+    resitNo: generateResitNo(),
+    disahkanPada: firebase.database.ServerValue.TIMESTAMP
+  }).then(() => showToast('Tempahan disahkan & resit dijana.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+function rejectOrder(id){
+  const sebab = prompt('Sebab penolakan (pilihan):', '');
+  if(sebab === null) return; // dibatalkan
+  db.ref(`${DB_ROOT}/tempahan/`+id).update({
+    status: 'ditolak',
+    sebabTolak: sebab || ''
+  }).then(() => showToast('Tempahan ditolak.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+/* ============================================================
+   KANTIN: REKOD TEMPAHAN (claim tracking)
+   ============================================================ */
+function renderKantinRekod(){
+  const wrap = document.getElementById('kantinRekodList');
+  if(!wrap) return;
+  const search = (document.getElementById('rekodSearch')?.value || '').trim().toLowerCase();
+  const claimFilter = document.getElementById('rekodFilterClaim')?.value || 'semua';
+
+  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan');
+  if(search){
+    list = list.filter(([id,o]) => (o.guruNama||'').toLowerCase().includes(search) || (o.aktiviti||'').toLowerCase().includes(search));
+  }
+  if(claimFilter !== 'semua'){
+    list = list.filter(([id,o]) => o.claimStatus === claimFilter);
+  }
+  list.sort((a,b) => (b[1].disahkanPada||0) - (a[1].disahkanPada||0));
+
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state"><strong>Tiada rekod ditemui</strong>Cuba ubah carian atau penapis status.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = list.map(([id,o]) => {
+    const claimBtn = o.claimStatus === 'sudah'
+      ? `<button class="btn btn-unclaim btn-sm" onclick="toggleClaim('${id}','belum')">↺ Tanda Belum Diambil</button>`
+      : `<button class="btn btn-claim btn-sm" onclick="toggleClaim('${id}','sudah')">✓ Tanda Sudah Diambil</button>`;
+    return `<div class="order-card">
+      <div class="order-card-top">
+        <div>
+          <h3>${escapeHtml(o.aktiviti)}</h3>
+          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)} · ${escapeHtml(o.resitNo||'')}</div>
+        </div>
+        <div class="badge-row">${claimBadge(o.claimStatus)}</div>
+      </div>
+      ${itemTagsHtml(o.items)}
+      ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
+      <div class="order-card-actions">
+        ${claimBtn}
+        <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleClaim(id, newStatus){
+  const updates = { claimStatus: newStatus };
+  if(newStatus === 'sudah') updates.diclaimPada = firebase.database.ServerValue.TIMESTAMP;
+  db.ref(`${DB_ROOT}/tempahan/`+id).update(updates)
+    .then(() => showToast(newStatus === 'sudah' ? 'Ditandakan sebagai sudah diambil.' : 'Ditandakan sebagai belum diambil.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+/* ============================================================
+   KANTIN: URUS MENU
+   ============================================================ */
+function renderMenuManage(){
+  const wrap = document.getElementById('menuManageList');
+  if(!wrap) return;
+  const list = Object.entries(menuItems).sort((a,b) => (a[1].nama||'').localeCompare(b[1].nama||''));
+  if(list.length === 0){
+    wrap.innerHTML = `<div class="empty-state"><strong>Belum ada item menu</strong>Tambah item pertama menggunakan borang di atas.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(([id,m]) => `<div class="menu-manage-row ${m.aktif===false?'inactive':''}">
+      <span class="nama">${escapeHtml(m.nama)}</span>
+      <div class="menu-manage-actions">
+        <button class="toggle-pill ${m.aktif!==false?'on':''}" onclick="toggleMenuActive('${id}', ${m.aktif===false})">${m.aktif!==false ? 'Aktif' : 'Tidak Aktif'}</button>
+        <button class="icon-btn" title="Padam" onclick="deleteMenuItem('${id}','${escapeHtml(m.nama).replace(/'/g,"\\'")}')">🗑</button>
+      </div>
+    </div>`).join('');
+}
+function addMenuItem(){
+  const nama = document.getElementById('inNewMenuNama').value.trim();
+  if(!nama){ showToast('Sila isi nama item.', true); return; }
+  db.ref(`${DB_ROOT}/menu`).push({nama, aktif:true})
+    .then(() => { document.getElementById('inNewMenuNama').value=''; showToast('Item menu ditambah.'); })
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+function toggleMenuActive(id, makeActive){
+  db.ref(`${DB_ROOT}/menu/`+id).update({aktif: makeActive})
+    .then(() => showToast(makeActive ? 'Item diaktifkan.' : 'Item dinyahaktifkan.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+function deleteMenuItem(id, nama){
+  if(!confirm(`Padam item "${nama}" daripada menu?`)) return;
+  db.ref(`${DB_ROOT}/menu/`+id).remove()
+    .then(() => showToast('Item dipadam.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+/* ============================================================
+   KANTIN: TETAPAN PIN
+   ============================================================ */
+function changePin(){
+  const lama = document.getElementById('inPinLama').value.trim();
+  const baru = document.getElementById('inPinBaru').value.trim();
+  if(lama !== kantinPin){ showToast('PIN semasa tidak tepat.', true); return; }
+  if(!baru || baru.length < 4){ showToast('PIN baharu mestilah sekurang-kurangnya 4 aksara.', true); return; }
+  db.ref(`${DB_ROOT}/tetapan/pin`).set(baru)
+    .then(() => {
+      kantinPin = baru;
+      document.getElementById('inPinLama').value='';
+      document.getElementById('inPinBaru').value='';
+      showToast('PIN berjaya dikemaskini.');
+    })
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+/* ============================================================
+   RESIT MODAL
+   ============================================================ */
+function openResit(id){
+  const o = orders[id];
+  if(!o) return;
+  document.getElementById('resitNo').textContent = o.resitNo || '-';
+  document.getElementById('resitGuru').textContent = o.guruNama || '-';
+  document.getElementById('resitAktiviti').textContent = o.aktiviti || '-';
+  document.getElementById('resitTarikh').textContent = formatTarikh(o.tarikhPerlu);
+  document.getElementById('resitCatatan').textContent = o.catatan || '-';
+  document.getElementById('resitDisahkan').textContent = formatMasaPenuh(o.disahkanPada);
+  document.getElementById('resitItems').innerHTML = (o.items||[]).map(it =>
+    `<div><span>${escapeHtml(it.nama)}</span><span>×${it.kuantiti}</span></div>`
+  ).join('');
+  const claimBadgeEl = document.getElementById('resitClaimBadge');
+  if(o.claimStatus === 'sudah'){
+    claimBadgeEl.textContent = 'SUDAH DIAMBIL';
+    claimBadgeEl.className = 'badge badge-claim-done';
+  } else {
+    claimBadgeEl.textContent = 'BELUM DIAMBIL';
+    claimBadgeEl.className = 'badge badge-claim-pending';
+  }
+  document.getElementById('resitModal').classList.remove('hidden');
+}
+function closeResit(){
+  document.getElementById('resitModal').classList.add('hidden');
+}
+document.getElementById('resitModal').addEventListener('click', e => {
+  if(e.target.id === 'resitModal') closeResit();
+});
+
+/* init */
+renderMenuPicker();
+renderCustomChips();
+</script>
+</body>
+</html>
