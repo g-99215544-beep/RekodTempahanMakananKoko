@@ -493,6 +493,7 @@
       <div class="resit-items" id="resitItems"></div>
       <div class="resit-divider"></div>
       <div class="resit-row"><span>Catatan</span><span id="resitCatatan">-</span></div>
+      <div class="resit-row"><span>Jumlah</span><span id="resitJumlah">-</span></div>
       <div class="resit-row"><span>Disahkan pada</span><span id="resitDisahkan">-</span></div>
       <div class="resit-status-line">
         <span class="badge badge-confirmed">DISAHKAN OLEH KANTIN</span>
@@ -803,7 +804,10 @@ function renderGuruOrders(){
   wrap.innerHTML = list.map(([id,o]) => {
     let actions = '';
     if(o.status === 'disahkan'){
-      actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button></div>`;
+      const resitLink = (o.resitBayaran && o.resitBayaran.url)
+        ? `<a class="btn btn-ghost btn-sm" href="${o.resitBayaran.url}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>`
+        : '';
+      actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>${resitLink}</div>`;
     }
     let rejectHtml = '';
     if(o.status === 'ditolak' && o.sebabTolak){
@@ -815,7 +819,7 @@ function renderGuruOrders(){
           <h3>${escapeHtml(o.aktiviti)}</h3>
           <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)}</div>
         </div>
-        <div class="badge-row">${statusBadge(o.status)}</div>
+        <div class="badge-row">${statusBadge(o.status)}${o.status==='disahkan' ? bayaranBadge(o.bayaranStatus) : ''}</div>
       </div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
@@ -1091,6 +1095,7 @@ function openResit(id){
   document.getElementById('resitAktiviti').textContent = o.aktiviti || '-';
   document.getElementById('resitTarikh').textContent = formatTarikh(o.tarikhPerlu);
   document.getElementById('resitCatatan').textContent = o.catatan || '-';
+  document.getElementById('resitJumlah').textContent = formatRM(o.hargaRM);
   document.getElementById('resitDisahkan').textContent = formatMasaPenuh(o.disahkanPada);
   document.getElementById('resitItems').innerHTML = (o.items||[]).map(it =>
     `<div><span>${escapeHtml(it.nama)}</span><span>×${it.kuantiti}</span></div>`
