@@ -405,7 +405,6 @@
     <div class="kantin-header">
       <div class="tabs">
         <button id="tabBtn-menunggu" onclick="setKantinTab('menunggu')" class="active">Menunggu Pengesahan</button>
-        <button id="tabBtn-rekod" onclick="setKantinTab('rekod')">Rekod Tempahan</button>
         <button id="tabBtn-bayaran" onclick="setKantinTab('bayaran')">Bayaran</button>
         <button id="tabBtn-menu" onclick="setKantinTab('menu')">Urus Menu</button>
         <button id="tabBtn-tetapan" onclick="setKantinTab('tetapan')">Tetapan</button>
@@ -415,15 +414,6 @@
 
     <div id="kantinTab-menunggu">
       <div id="kantinPendingList" class="card-grid"></div>
-    </div>
-
-    <div id="kantinTab-rekod" class="hidden">
-      <div class="list-header">
-        <div class="list-toolbar">
-          <input type="text" id="rekodSearch" placeholder="Cari nama guru / aktiviti..." oninput="renderKantinRekod()">
-        </div>
-      </div>
-      <div id="kantinRekodList" class="card-grid"></div>
     </div>
 
     <div id="kantinTab-bayaran" class="hidden">
@@ -490,7 +480,7 @@
       <div class="resit-row"><span>Disahkan pada</span><span id="resitDisahkan">-</span></div>
       <div class="resit-status-line">
         <span class="badge badge-confirmed">DISAHKAN OLEH KANTIN</span>
-        <div style="margin-top:8px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"><span id="resitClaimBadge" class="badge badge-claim-pending">BELUM DIAMBIL</span><span id="resitBayaranBadge" class="badge badge-pending">BELUM DIBAYAR</span></div>
+        <div style="margin-top:8px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"><span id="resitBayaranBadge" class="badge badge-pending">BELUM DIBAYAR</span></div>
       </div>
       <div class="resit-foot">Resit ini dijana secara digital sebagai bukti tempahan sah.<br>Simpan / cetak untuk rujukan anda.</div>
       <div class="resit-actions">
@@ -608,7 +598,6 @@ if(firebaseReady){
     orders = snap.val() || {};
     renderGuruOrders();
     renderKantinPending();
-    renderKantinRekod();
     renderKantinBayaran();
   });
   db.ref(`${DB_ROOT}/tetapan/pin`).once('value', snap => {
@@ -659,7 +648,7 @@ function logoutKantin(){
 
 function setKantinTab(tab){
   currentKantinTab = tab;
-  ['menunggu','rekod','bayaran','menu','tetapan'].forEach(t => {
+  ['menunggu','bayaran','menu','tetapan'].forEach(t => {
     document.getElementById('tabBtn-'+t).classList.toggle('active', t===tab);
     document.getElementById('kantinTab-'+t).classList.toggle('hidden', t!==tab);
   });
@@ -748,7 +737,6 @@ function submitOrder(){
     items: items,
     catatan: catatan,
     status: 'menunggu',
-    claimStatus: 'belum',
     bayaranStatus: 'belum',
     dicipta: firebase.database.ServerValue.TIMESTAMP
   };
@@ -776,10 +764,6 @@ function statusBadge(status){
   if(status === 'disahkan') return `<span class="badge badge-confirmed">DISAHKAN</span>`;
   if(status === 'ditolak') return `<span class="badge badge-rejected">DITOLAK</span>`;
   return '';
-}
-function claimBadge(claimStatus){
-  if(claimStatus === 'sudah') return `<span class="badge badge-claim-done">SUDAH DIAMBIL</span>`;
-  return `<span class="badge badge-claim-pending">BELUM DIAMBIL</span>`;
 }
 function itemTagsHtml(items){
   return `<div class="item-tags">${(items||[]).map(it => `<span class="item-tag">${it.kuantiti}× ${escapeHtml(it.nama)}</span>`).join('')}</div>`;
@@ -815,7 +799,7 @@ function renderGuruOrders(){
           <h3>${escapeHtml(o.aktiviti)}</h3>
           <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)}</div>
         </div>
-        <div class="badge-row">${statusBadge(o.status)}${o.status==='disahkan' ? claimBadge(o.claimStatus) : ''}</div>
+        <div class="badge-row">${statusBadge(o.status)}</div>
       </div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
@@ -868,7 +852,6 @@ function confirmOrder(id){
   if(!confirm('Sahkan tempahan ini? Resit digital akan dijana secara automatik.')) return;
   db.ref(`${DB_ROOT}/tempahan/`+id).update({
     status: 'disahkan',
-    claimStatus: 'belum',
     resitNo: generateResitNo(),
     disahkanPada: firebase.database.ServerValue.TIMESTAMP
   }).then(() => showToast('Tempahan disahkan & resit dijana.'))
@@ -892,50 +875,6 @@ function bayaranBadge(status){
   return `<span class="badge badge-pending">BELUM DIBAYAR</span>`;
 }
 
-// Rekod Tempahan: tempahan disahkan yang BELUM diambil sahaja.
-function renderKantinRekod(){
-  const wrap = document.getElementById('kantinRekodList');
-  if(!wrap) return;
-  const search = (document.getElementById('rekodSearch')?.value || '').trim().toLowerCase();
-
-  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan' && (o.claimStatus||'belum') !== 'sudah');
-  if(search){
-    list = list.filter(([id,o]) => (o.guruNama||'').toLowerCase().includes(search) || (o.aktiviti||'').toLowerCase().includes(search));
-  }
-  list.sort((a,b) => (b[1].disahkanPada||0) - (a[1].disahkanPada||0));
-
-  if(list.length === 0){
-    wrap.innerHTML = `<div class="empty-state"><strong>Tiada tempahan untuk diambil</strong>Tempahan yang disahkan & belum diambil akan muncul di sini.</div>`;
-    return;
-  }
-
-  wrap.innerHTML = list.map(([id,o]) => {
-    return `<div class="order-card">
-      <div class="order-card-top">
-        <div>
-          <h3>${escapeHtml(o.aktiviti)}</h3>
-          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)} · ${escapeHtml(o.resitNo||'')}</div>
-        </div>
-        <div class="badge-row">${claimBadge(o.claimStatus)}</div>
-      </div>
-      ${itemTagsHtml(o.items)}
-      ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
-      <div class="order-card-actions">
-        <button class="btn btn-claim btn-sm" onclick="toggleClaim('${id}','sudah')">✓ Tanda Sudah Diambil</button>
-        <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function toggleClaim(id, newStatus){
-  const updates = { claimStatus: newStatus };
-  if(newStatus === 'sudah') updates.diclaimPada = firebase.database.ServerValue.TIMESTAMP;
-  db.ref(`${DB_ROOT}/tempahan/`+id).update(updates)
-    .then(() => showToast(newStatus === 'sudah' ? 'Ditandakan sudah diambil. Rekod dipindah ke tab Bayaran.' : 'Ditandakan belum diambil. Rekod kembali ke Rekod Tempahan.'))
-    .catch(err => showToast('Ralat: ' + err.message, true));
-}
-
 /* ============================================================
    KANTIN: BAYARAN (claim / pembayaran kantin)
    ============================================================ */
@@ -946,7 +885,7 @@ function renderKantinBayaran(){
   const search = (document.getElementById('bayaranSearch')?.value || '').trim().toLowerCase();
   const filter = document.getElementById('bayaranFilter')?.value || 'semua';
 
-  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan' && o.claimStatus === 'sudah');
+  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan');
 
   // Kemaskini label tab dengan bilangan belum dibayar.
   const belumCount = list.filter(([id,o]) => (o.bayaranStatus||'belum') !== 'sudah').length;
@@ -983,7 +922,6 @@ function renderKantinBayaran(){
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
       <div class="order-card-actions">
         ${payBtn}
-        <button class="btn btn-ghost btn-sm" onclick="toggleClaim('${id}','belum')">↺ Tanda Belum Diambil</button>
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
       </div>
     </div>`;
@@ -1069,14 +1007,6 @@ function openResit(id){
   document.getElementById('resitItems').innerHTML = (o.items||[]).map(it =>
     `<div><span>${escapeHtml(it.nama)}</span><span>×${it.kuantiti}</span></div>`
   ).join('');
-  const claimBadgeEl = document.getElementById('resitClaimBadge');
-  if(o.claimStatus === 'sudah'){
-    claimBadgeEl.textContent = 'SUDAH DIAMBIL';
-    claimBadgeEl.className = 'badge badge-claim-done';
-  } else {
-    claimBadgeEl.textContent = 'BELUM DIAMBIL';
-    claimBadgeEl.className = 'badge badge-claim-pending';
-  }
   const bayaranBadgeEl = document.getElementById('resitBayaranBadge');
   if(o.bayaranStatus === 'sudah'){
     bayaranBadgeEl.textContent = 'SUDAH DIBAYAR';
