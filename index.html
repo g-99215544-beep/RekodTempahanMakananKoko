@@ -17,6 +17,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <style>
   :root{
     --bg: #FBF6EC;
@@ -209,8 +210,6 @@
   .badge-pending{background:var(--pending-bg); color:var(--pending);}
   .badge-confirmed{background:var(--confirmed-bg); color:var(--confirmed);}
   .badge-rejected{background:var(--rejected-bg); color:var(--rejected);}
-  .badge-claim-pending{background:var(--claim-pending-bg); color:var(--claim-pending);}
-  .badge-claim-done{background:var(--claim-done-bg); color:var(--claim-done);}
 
   .item-tags{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
   .item-tag{
@@ -266,6 +265,21 @@
   .icon-btn:hover{background:var(--rejected-bg); color:var(--rejected); border-color:var(--rejected);}
   .add-menu-form{display:flex; gap:8px; margin-bottom:18px;}
   .add-menu-form input{flex:1;}
+
+  .pay-summary{
+    background:var(--primary); color:#fff; border-radius:var(--radius);
+    padding:16px 20px; margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  .pay-summary-label{font-size:12.5px; opacity:.85; letter-spacing:.02em;}
+  .pay-summary-amount{font-family:var(--font-display); font-size:26px; font-weight:600; margin-top:2px;}
+  .pay-summary-note{font-size:12px; opacity:.85; margin-top:6px;}
+  .pay-line{display:flex; align-items:center; gap:8px; margin:10px 0;}
+  .rm-prefix{font-family:var(--font-mono); font-weight:600; color:var(--ink-soft); font-size:13px;}
+  .rm-input{
+    width:110px; padding:8px 11px; border:1px solid var(--border); border-radius:9px;
+    background:#fff; font-family:var(--font-mono); font-size:14px; text-align:right;
+  }
+  .rm-input:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(31,77,58,.12); outline:none;}
 
   /* ---------- modal / receipt ---------- */
   .modal-backdrop{
@@ -404,7 +418,6 @@
     <div class="kantin-header">
       <div class="tabs">
         <button id="tabBtn-menunggu" onclick="setKantinTab('menunggu')" class="active">Menunggu Pengesahan</button>
-        <button id="tabBtn-rekod" onclick="setKantinTab('rekod')">Rekod Tempahan</button>
         <button id="tabBtn-bayaran" onclick="setKantinTab('bayaran')">Bayaran</button>
         <button id="tabBtn-menu" onclick="setKantinTab('menu')">Urus Menu</button>
         <button id="tabBtn-tetapan" onclick="setKantinTab('tetapan')">Tetapan</button>
@@ -416,16 +429,8 @@
       <div id="kantinPendingList" class="card-grid"></div>
     </div>
 
-    <div id="kantinTab-rekod" class="hidden">
-      <div class="list-header">
-        <div class="list-toolbar">
-          <input type="text" id="rekodSearch" placeholder="Cari nama guru / aktiviti..." oninput="renderKantinRekod()">
-        </div>
-      </div>
-      <div id="kantinRekodList" class="card-grid"></div>
-    </div>
-
     <div id="kantinTab-bayaran" class="hidden">
+      <div id="bayaranSummary"></div>
       <div class="list-header">
         <div class="list-toolbar">
           <input type="text" id="bayaranSearch" placeholder="Cari nama guru / aktiviti..." oninput="renderKantinBayaran()">
@@ -486,10 +491,11 @@
       <div class="resit-items" id="resitItems"></div>
       <div class="resit-divider"></div>
       <div class="resit-row"><span>Catatan</span><span id="resitCatatan">-</span></div>
+      <div class="resit-row"><span>Jumlah</span><span id="resitJumlah">-</span></div>
       <div class="resit-row"><span>Disahkan pada</span><span id="resitDisahkan">-</span></div>
       <div class="resit-status-line">
         <span class="badge badge-confirmed">DISAHKAN OLEH KANTIN</span>
-        <div style="margin-top:8px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"><span id="resitClaimBadge" class="badge badge-claim-pending">BELUM DIAMBIL</span><span id="resitBayaranBadge" class="badge badge-pending">BELUM DIBAYAR</span></div>
+        <div style="margin-top:8px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap;"><span id="resitBayaranBadge" class="badge badge-pending">BELUM DIBAYAR</span></div>
       </div>
       <div class="resit-foot">Resit ini dijana secara digital sebagai bukti tempahan sah.<br>Simpan / cetak untuk rujukan anda.</div>
       <div class="resit-actions">
@@ -529,6 +535,7 @@ document.getElementById('schoolLabel').textContent = APP_CONFIG.schoolName;
 document.getElementById('resitSekolah').textContent = APP_CONFIG.schoolName;
 
 let db = null;
+let storage = null;
 let firebaseReady = false;
 try{
   if(firebaseConfig.projectId === "GANTI"){
@@ -536,6 +543,7 @@ try{
   } else {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
+    storage = firebase.storage();
     firebaseReady = true;
   }
 }catch(e){
@@ -572,6 +580,15 @@ function formatMasaPenuh(ts){
   h = h % 12; if(h === 0) h = 12;
   return `${tarikh}, ${h}:${mnt} ${ampm}`;
 }
+function formatRM(n){
+  if(n === undefined || n === null || n === '' || isNaN(Number(n))) return "-";
+  return "RM " + Number(n).toFixed(2);
+}
+function parseRM(raw){
+  const cleaned = String(raw).replace(/[^0-9.]/g,'');
+  const v = parseFloat(cleaned);
+  return (isNaN(v) || v <= 0) ? null : v;
+}
 function escapeHtml(s){
   return (s || "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -596,7 +613,6 @@ if(firebaseReady){
     orders = snap.val() || {};
     renderGuruOrders();
     renderKantinPending();
-    renderKantinRekod();
     renderKantinBayaran();
   });
   db.ref(`${DB_ROOT}/tetapan/pin`).once('value', snap => {
@@ -647,7 +663,7 @@ function logoutKantin(){
 
 function setKantinTab(tab){
   currentKantinTab = tab;
-  ['menunggu','rekod','bayaran','menu','tetapan'].forEach(t => {
+  ['menunggu','bayaran','menu','tetapan'].forEach(t => {
     document.getElementById('tabBtn-'+t).classList.toggle('active', t===tab);
     document.getElementById('kantinTab-'+t).classList.toggle('hidden', t!==tab);
   });
@@ -736,7 +752,6 @@ function submitOrder(){
     items: items,
     catatan: catatan,
     status: 'menunggu',
-    claimStatus: 'belum',
     bayaranStatus: 'belum',
     dicipta: firebase.database.ServerValue.TIMESTAMP
   };
@@ -765,10 +780,6 @@ function statusBadge(status){
   if(status === 'ditolak') return `<span class="badge badge-rejected">DITOLAK</span>`;
   return '';
 }
-function claimBadge(claimStatus){
-  if(claimStatus === 'sudah') return `<span class="badge badge-claim-done">SUDAH DIAMBIL</span>`;
-  return `<span class="badge badge-claim-pending">BELUM DIAMBIL</span>`;
-}
 function itemTagsHtml(items){
   return `<div class="item-tags">${(items||[]).map(it => `<span class="item-tag">${it.kuantiti}× ${escapeHtml(it.nama)}</span>`).join('')}</div>`;
 }
@@ -791,7 +802,10 @@ function renderGuruOrders(){
   wrap.innerHTML = list.map(([id,o]) => {
     let actions = '';
     if(o.status === 'disahkan'){
-      actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button></div>`;
+      const resitLink = (o.resitBayaran && o.resitBayaran.url)
+        ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(o.resitBayaran.url)}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>`
+        : '';
+      actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>${resitLink}</div>`;
     }
     let rejectHtml = '';
     if(o.status === 'ditolak' && o.sebabTolak){
@@ -803,7 +817,7 @@ function renderGuruOrders(){
           <h3>${escapeHtml(o.aktiviti)}</h3>
           <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)}</div>
         </div>
-        <div class="badge-row">${statusBadge(o.status)}${o.status==='disahkan' ? claimBadge(o.claimStatus) : ''}</div>
+        <div class="badge-row">${statusBadge(o.status)}${o.status==='disahkan' ? bayaranBadge(o.bayaranStatus) : ''}</div>
       </div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
@@ -856,7 +870,6 @@ function confirmOrder(id){
   if(!confirm('Sahkan tempahan ini? Resit digital akan dijana secara automatik.')) return;
   db.ref(`${DB_ROOT}/tempahan/`+id).update({
     status: 'disahkan',
-    claimStatus: 'belum',
     resitNo: generateResitNo(),
     disahkanPada: firebase.database.ServerValue.TIMESTAMP
   }).then(() => showToast('Tempahan disahkan & resit dijana.'))
@@ -873,92 +886,65 @@ function rejectOrder(id){
 }
 
 /* ============================================================
-   KANTIN: REKOD TEMPAHAN (claim tracking)
+   KANTIN: BADGE BAYARAN
    ============================================================ */
 function bayaranBadge(status){
   if(status === 'sudah') return `<span class="badge badge-confirmed">SUDAH DIBAYAR</span>`;
   return `<span class="badge badge-pending">BELUM DIBAYAR</span>`;
 }
 
-// Rekod Tempahan: tempahan disahkan yang BELUM diambil sahaja.
-function renderKantinRekod(){
-  const wrap = document.getElementById('kantinRekodList');
-  if(!wrap) return;
-  const search = (document.getElementById('rekodSearch')?.value || '').trim().toLowerCase();
-
-  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan' && (o.claimStatus||'belum') !== 'sudah');
-  if(search){
-    list = list.filter(([id,o]) => (o.guruNama||'').toLowerCase().includes(search) || (o.aktiviti||'').toLowerCase().includes(search));
-  }
-  list.sort((a,b) => (b[1].disahkanPada||0) - (a[1].disahkanPada||0));
-
-  if(list.length === 0){
-    wrap.innerHTML = `<div class="empty-state"><strong>Tiada tempahan untuk diambil</strong>Tempahan yang disahkan & belum diambil akan muncul di sini.</div>`;
-    return;
-  }
-
-  wrap.innerHTML = list.map(([id,o]) => {
-    return `<div class="order-card">
-      <div class="order-card-top">
-        <div>
-          <h3>${escapeHtml(o.aktiviti)}</h3>
-          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)} · ${escapeHtml(o.resitNo||'')}</div>
-        </div>
-        <div class="badge-row">${claimBadge(o.claimStatus)}</div>
-      </div>
-      ${itemTagsHtml(o.items)}
-      ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
-      <div class="order-card-actions">
-        <button class="btn btn-claim btn-sm" onclick="toggleClaim('${id}','sudah')">✓ Tanda Sudah Diambil</button>
-        <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function toggleClaim(id, newStatus){
-  const updates = { claimStatus: newStatus };
-  if(newStatus === 'sudah') updates.diclaimPada = firebase.database.ServerValue.TIMESTAMP;
-  db.ref(`${DB_ROOT}/tempahan/`+id).update(updates)
-    .then(() => showToast(newStatus === 'sudah' ? 'Ditandakan sudah diambil. Rekod dipindah ke tab Bayaran.' : 'Ditandakan belum diambil. Rekod kembali ke Rekod Tempahan.'))
-    .catch(err => showToast('Ralat: ' + err.message, true));
-}
-
 /* ============================================================
-   KANTIN: BAYARAN (claim / pembayaran kantin)
+   KANTIN: BAYARAN
    ============================================================ */
-// Bayaran: tempahan yang SUDAH diambil — jejak pembayaran unit koko.
+// Bayaran: semua tempahan disahkan — jejak pembayaran unit koko.
 function renderKantinBayaran(){
   const wrap = document.getElementById('kantinBayaranList');
   if(!wrap) return;
   const search = (document.getElementById('bayaranSearch')?.value || '').trim().toLowerCase();
   const filter = document.getElementById('bayaranFilter')?.value || 'semua';
 
-  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan' && o.claimStatus === 'sudah');
+  const allConfirmed = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan');
+  const unpaid = allConfirmed.filter(([id,o]) => (o.bayaranStatus||'belum') !== 'sudah');
+  const totalBelum = unpaid.reduce((s,[id,o]) => s + (o.hargaRM > 0 ? o.hargaRM : 0), 0);
+  const tanpaNilai = unpaid.filter(([id,o]) => !(o.hargaRM > 0)).length;
 
-  // Kemaskini label tab dengan bilangan belum dibayar.
-  const belumCount = list.filter(([id,o]) => (o.bayaranStatus||'belum') !== 'sudah').length;
   const tabBtn = document.getElementById('tabBtn-bayaran');
-  if(tabBtn) tabBtn.textContent = belumCount > 0 ? `Bayaran (${belumCount})` : 'Bayaran';
+  if(tabBtn) tabBtn.textContent = unpaid.length > 0 ? `Bayaran (${unpaid.length})` : 'Bayaran';
 
+  const summary = document.getElementById('bayaranSummary');
+  if(summary){
+    summary.innerHTML = `<div class="pay-summary">
+      <div class="pay-summary-label">Jumlah Belum Dibayar</div>
+      <div class="pay-summary-amount">${formatRM(totalBelum)}</div>
+      ${tanpaNilai > 0 ? `<div class="pay-summary-note">${tanpaNilai} tempahan belum ditetapkan nilai (tidak dikira dalam jumlah)</div>` : ''}
+    </div>`;
+  }
+
+  let list = allConfirmed;
   if(search){
     list = list.filter(([id,o]) => (o.guruNama||'').toLowerCase().includes(search) || (o.aktiviti||'').toLowerCase().includes(search));
   }
   if(filter !== 'semua'){
     list = list.filter(([id,o]) => (o.bayaranStatus||'belum') === filter);
   }
-  list.sort((a,b) => (b[1].diclaimPada||0) - (a[1].diclaimPada||0));
+  list.sort((a,b) => (b[1].disahkanPada||0) - (a[1].disahkanPada||0));
 
   if(list.length === 0){
-    wrap.innerHTML = `<div class="empty-state"><strong>Tiada rekod</strong>Tempahan yang sudah diambil akan muncul di sini untuk jejak bayaran.</div>`;
+    wrap.innerHTML = `<div class="empty-state"><strong>Tiada rekod</strong>Tempahan yang disahkan akan muncul di sini untuk jejak bayaran.</div>`;
     return;
   }
 
   wrap.innerHTML = list.map(([id,o]) => {
     const paid = (o.bayaranStatus||'belum') === 'sudah';
+    const hargaVal = (o.hargaRM > 0) ? Number(o.hargaRM).toFixed(2) : '';
     const payBtn = paid
       ? `<button class="btn btn-unclaim btn-sm" onclick="toggleBayaran('${id}','belum')">↺ Tanda Belum Dibayar</button>`
       : `<button class="btn btn-claim btn-sm" onclick="toggleBayaran('${id}','sudah')">✓ Tanda Sudah Dibayar</button>`;
+    const resitCtrl = o.resitBayaran && o.resitBayaran.url
+      ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(o.resitBayaran.url)}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>
+         <label class="btn btn-ghost btn-sm">Ganti<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>
+         <button class="btn btn-ghost btn-sm" onclick="removeResit('${id}')">Buang Resit</button>`
+      : `<label class="btn btn-ghost btn-sm">📎 Attach Resit<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>`;
     return `<div class="order-card">
       <div class="order-card-top">
         <div>
@@ -969,16 +955,70 @@ function renderKantinBayaran(){
       </div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
+      <div class="pay-line">
+        <span class="rm-prefix">RM</span>
+        <input type="text" inputmode="decimal" id="harga-${id}" class="rm-input" value="${hargaVal}" placeholder="0.00">
+        <button class="btn btn-ghost btn-sm" onclick="saveHarga('${id}')">Simpan Nilai</button>
+      </div>
       <div class="order-card-actions">
         ${payBtn}
-        <button class="btn btn-ghost btn-sm" onclick="toggleClaim('${id}','belum')">↺ Tanda Belum Diambil</button>
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
+        ${resitCtrl}
       </div>
     </div>`;
   }).join('');
 }
 
+function saveHarga(id){
+  const el = document.getElementById('harga-'+id);
+  if(!el) return;
+  const v = parseRM(el.value);
+  if(v === null){ showToast('Nilai RM tidak sah. Contoh: 23.40', true); return; }
+  db.ref(`${DB_ROOT}/tempahan/`+id).update({hargaRM: v})
+    .then(() => showToast('Nilai RM disimpan.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+function uploadResit(id, input){
+  const file = input.files && input.files[0];
+  if(!file){ return; }
+  if(!file.type.startsWith('image/')){ showToast('Sila pilih fail imej.', true); input.value=''; return; }
+  if(file.size > 5*1024*1024){ showToast('Saiz imej terlalu besar (maksimum 5MB).', true); input.value=''; return; }
+  if(!storage){ showToast('Firebase Storage belum sedia.', true); return; }
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path = `${DB_ROOT}/resit/${id}/${Date.now()}-${safe}`;
+  const ref = storage.ref(path);
+  showToast('Memuat naik resit...');
+  ref.put(file)
+    .then(snap => snap.ref.getDownloadURL())
+    .then(url => db.ref(`${DB_ROOT}/tempahan/${id}`).update({
+      resitBayaran: { url, path, dimuatNaikPada: firebase.database.ServerValue.TIMESTAMP }
+    }))
+    .then(() => showToast('Resit bayaran dimuat naik.'))
+    .catch(err => showToast('Ralat muat naik: ' + err.message, true))
+    .finally(() => { input.value=''; });
+}
+function removeResit(id){
+  const o = orders[id];
+  if(!o || !o.resitBayaran) return;
+  if(!confirm('Buang resit bayaran ini?')) return;
+  const path = o.resitBayaran.path;
+  const clearDb = () => db.ref(`${DB_ROOT}/tempahan/${id}/resitBayaran`).remove()
+    .then(() => showToast('Resit dibuang.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+  if(path && storage){
+    storage.ref(path).delete().then(clearDb).catch(clearDb); // buang rekod DB walaupun padam Storage gagal
+  } else {
+    clearDb();
+  }
+}
+
 function toggleBayaran(id, newStatus){
+  const o = orders[id];
+  if(newStatus === 'sudah' && !(o && o.hargaRM > 0)){
+    showToast('Sila isi nilai RM dahulu sebelum tanda sudah dibayar.', true);
+    return;
+  }
   const updates = { bayaranStatus: newStatus };
   if(newStatus === 'sudah') updates.dibayarPada = firebase.database.ServerValue.TIMESTAMP;
   db.ref(`${DB_ROOT}/tempahan/`+id).update(updates)
@@ -1053,18 +1093,11 @@ function openResit(id){
   document.getElementById('resitAktiviti').textContent = o.aktiviti || '-';
   document.getElementById('resitTarikh').textContent = formatTarikh(o.tarikhPerlu);
   document.getElementById('resitCatatan').textContent = o.catatan || '-';
+  document.getElementById('resitJumlah').textContent = formatRM(o.hargaRM);
   document.getElementById('resitDisahkan').textContent = formatMasaPenuh(o.disahkanPada);
   document.getElementById('resitItems').innerHTML = (o.items||[]).map(it =>
     `<div><span>${escapeHtml(it.nama)}</span><span>×${it.kuantiti}</span></div>`
   ).join('');
-  const claimBadgeEl = document.getElementById('resitClaimBadge');
-  if(o.claimStatus === 'sudah'){
-    claimBadgeEl.textContent = 'SUDAH DIAMBIL';
-    claimBadgeEl.className = 'badge badge-claim-done';
-  } else {
-    claimBadgeEl.textContent = 'BELUM DIAMBIL';
-    claimBadgeEl.className = 'badge badge-claim-pending';
-  }
   const bayaranBadgeEl = document.getElementById('resitBayaranBadge');
   if(o.bayaranStatus === 'sudah'){
     bayaranBadgeEl.textContent = 'SUDAH DIBAYAR';
