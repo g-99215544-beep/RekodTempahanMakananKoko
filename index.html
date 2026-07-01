@@ -268,6 +268,21 @@
   .add-menu-form{display:flex; gap:8px; margin-bottom:18px;}
   .add-menu-form input{flex:1;}
 
+  .pay-summary{
+    background:var(--primary); color:#fff; border-radius:var(--radius);
+    padding:16px 20px; margin-bottom:16px; box-shadow:var(--shadow);
+  }
+  .pay-summary-label{font-size:12.5px; opacity:.85; letter-spacing:.02em;}
+  .pay-summary-amount{font-family:var(--font-display); font-size:26px; font-weight:600; margin-top:2px;}
+  .pay-summary-note{font-size:12px; opacity:.85; margin-top:6px;}
+  .pay-line{display:flex; align-items:center; gap:8px; margin:10px 0;}
+  .rm-prefix{font-family:var(--font-mono); font-weight:600; color:var(--ink-soft); font-size:13px;}
+  .rm-input{
+    width:110px; padding:8px 11px; border:1px solid var(--border); border-radius:9px;
+    background:#fff; font-family:var(--font-mono); font-size:14px; text-align:right;
+  }
+  .rm-input:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(31,77,58,.12); outline:none;}
+
   /* ---------- modal / receipt ---------- */
   .modal-backdrop{
     position:fixed; inset:0; background:rgba(43,36,25,.55); backdrop-filter:blur(2px);
@@ -417,6 +432,7 @@
     </div>
 
     <div id="kantinTab-bayaran" class="hidden">
+      <div id="bayaranSummary"></div>
       <div class="list-header">
         <div class="list-toolbar">
           <input type="text" id="bayaranSearch" placeholder="Cari nama guru / aktiviti..." oninput="renderKantinBayaran()">
@@ -885,28 +901,40 @@ function renderKantinBayaran(){
   const search = (document.getElementById('bayaranSearch')?.value || '').trim().toLowerCase();
   const filter = document.getElementById('bayaranFilter')?.value || 'semua';
 
-  let list = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan');
+  const allConfirmed = Object.entries(orders).filter(([id,o]) => o.status === 'disahkan');
+  const unpaid = allConfirmed.filter(([id,o]) => (o.bayaranStatus||'belum') !== 'sudah');
+  const totalBelum = unpaid.reduce((s,[id,o]) => s + (o.hargaRM > 0 ? o.hargaRM : 0), 0);
+  const tanpaNilai = unpaid.filter(([id,o]) => !(o.hargaRM > 0)).length;
 
-  // Kemaskini label tab dengan bilangan belum dibayar.
-  const belumCount = list.filter(([id,o]) => (o.bayaranStatus||'belum') !== 'sudah').length;
   const tabBtn = document.getElementById('tabBtn-bayaran');
-  if(tabBtn) tabBtn.textContent = belumCount > 0 ? `Bayaran (${belumCount})` : 'Bayaran';
+  if(tabBtn) tabBtn.textContent = unpaid.length > 0 ? `Bayaran (${unpaid.length})` : 'Bayaran';
 
+  const summary = document.getElementById('bayaranSummary');
+  if(summary){
+    summary.innerHTML = `<div class="pay-summary">
+      <div class="pay-summary-label">Jumlah Belum Dibayar</div>
+      <div class="pay-summary-amount">${formatRM(totalBelum)}</div>
+      ${tanpaNilai > 0 ? `<div class="pay-summary-note">${tanpaNilai} tempahan belum ditetapkan nilai (tidak dikira dalam jumlah)</div>` : ''}
+    </div>`;
+  }
+
+  let list = allConfirmed;
   if(search){
     list = list.filter(([id,o]) => (o.guruNama||'').toLowerCase().includes(search) || (o.aktiviti||'').toLowerCase().includes(search));
   }
   if(filter !== 'semua'){
     list = list.filter(([id,o]) => (o.bayaranStatus||'belum') === filter);
   }
-  list.sort((a,b) => (b[1].diclaimPada||0) - (a[1].diclaimPada||0));
+  list.sort((a,b) => (b[1].disahkanPada||0) - (a[1].disahkanPada||0));
 
   if(list.length === 0){
-    wrap.innerHTML = `<div class="empty-state"><strong>Tiada rekod</strong>Tempahan yang sudah diambil akan muncul di sini untuk jejak bayaran.</div>`;
+    wrap.innerHTML = `<div class="empty-state"><strong>Tiada rekod</strong>Tempahan yang disahkan akan muncul di sini untuk jejak bayaran.</div>`;
     return;
   }
 
   wrap.innerHTML = list.map(([id,o]) => {
     const paid = (o.bayaranStatus||'belum') === 'sudah';
+    const hargaVal = (o.hargaRM > 0) ? Number(o.hargaRM).toFixed(2) : '';
     const payBtn = paid
       ? `<button class="btn btn-unclaim btn-sm" onclick="toggleBayaran('${id}','belum')">↺ Tanda Belum Dibayar</button>`
       : `<button class="btn btn-claim btn-sm" onclick="toggleBayaran('${id}','sudah')">✓ Tanda Sudah Dibayar</button>`;
@@ -920,6 +948,11 @@ function renderKantinBayaran(){
       </div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
+      <div class="pay-line">
+        <span class="rm-prefix">RM</span>
+        <input type="text" inputmode="decimal" id="harga-${id}" class="rm-input" value="${hargaVal}" placeholder="0.00">
+        <button class="btn btn-ghost btn-sm" onclick="saveHarga('${id}')">Simpan Nilai</button>
+      </div>
       <div class="order-card-actions">
         ${payBtn}
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
@@ -928,7 +961,22 @@ function renderKantinBayaran(){
   }).join('');
 }
 
+function saveHarga(id){
+  const el = document.getElementById('harga-'+id);
+  if(!el) return;
+  const v = parseRM(el.value);
+  if(v === null){ showToast('Nilai RM tidak sah. Contoh: 23.40', true); return; }
+  db.ref(`${DB_ROOT}/tempahan/`+id).update({hargaRM: v})
+    .then(() => showToast('Nilai RM disimpan.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
 function toggleBayaran(id, newStatus){
+  const o = orders[id];
+  if(newStatus === 'sudah' && !(o && o.hargaRM > 0)){
+    showToast('Sila isi nilai RM dahulu sebelum tanda sudah dibayar.', true);
+    return;
+  }
   const updates = { bayaranStatus: newStatus };
   if(newStatus === 'sudah') updates.dibayarPada = firebase.database.ServerValue.TIMESTAMP;
   db.ref(`${DB_ROOT}/tempahan/`+id).update(updates)
