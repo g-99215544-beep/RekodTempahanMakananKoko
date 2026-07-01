@@ -335,6 +335,15 @@
   .resit-status-line{text-align:center; margin:14px 0 6px;}
   .resit-foot{text-align:center; font-size:11px; color:var(--ink-faint); margin-top:16px; line-height:1.6;}
   .resit-actions{display:flex; gap:8px; margin-top:18px;}
+  /* ---------- resit bayaran (imej) lightbox ---------- */
+  .resit-img-wrap{max-width:520px; width:100%; max-height:90vh; display:flex; flex-direction:column; gap:12px;}
+  .resit-img{
+    width:100%; max-height:78vh; object-fit:contain; border-radius:10px;
+    background:#fff; box-shadow:0 20px 60px -10px rgba(0,0,0,.35);
+  }
+  .resit-img-actions{display:flex; gap:8px;}
+  /* nilai RM pada baris senarai bayaran */
+  .oi-amount{font-family:var(--font-mono); font-weight:600; font-size:12.5px; color:var(--ink); white-space:nowrap;}
   @media print{
     body *{visibility:hidden;}
     #resitModal, #resitModal *{visibility:visible;}
@@ -529,6 +538,17 @@
   </div>
 </div>
 
+<!-- ===================== RESIT BAYARAN (IMEJ) MODAL ===================== -->
+<div id="resitImgModal" class="modal-backdrop hidden">
+  <div class="resit-img-wrap">
+    <img id="resitImg" class="resit-img" src="" alt="Resit Bayaran">
+    <div class="resit-img-actions">
+      <button class="btn btn-ghost btn-block" onclick="closeResitBayaran()">Tutup</button>
+      <a id="resitImgOpen" class="btn btn-primary btn-block" href="#" target="_blank" rel="noopener">Buka di Tab Baharu</a>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
 <script>
@@ -697,7 +717,7 @@ function setKantinTab(tab){
    ============================================================ */
 const savedNama = localStorage.getItem('tempahMakanan_namaGuru');
 if(savedNama) document.getElementById('inNamaGuru').value = savedNama;
-document.getElementById('inTarikh').min = new Date().toISOString().slice(0,10);
+// Tiada had tarikh — benarkan tarikh lepas (backdate) untuk simpan rekod lama.
 
 let menuQty = {}; // id -> qty (local draft)
 
@@ -849,7 +869,7 @@ function renderGuruOrders(){
     let actions = '';
     if(o.status === 'disahkan'){
       const resitLink = (o.resitBayaran && o.resitBayaran.url)
-        ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(o.resitBayaran.url)}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>`
+        ? `<button class="btn btn-ghost btn-sm" onclick="openResitBayaran('${id}')">🧾 Lihat Resit Bayaran</button>`
         : '';
       actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>${resitLink}</div>`;
     }
@@ -978,7 +998,7 @@ function renderKantinBayaran(){
       ? `<button class="btn btn-unclaim btn-sm" onclick="toggleBayaran('${id}','belum')">↺ Tanda Belum Dibayar</button>`
       : `<button class="btn btn-claim btn-sm" onclick="toggleBayaran('${id}','sudah')">✓ Tanda Sudah Dibayar</button>`;
     const resitCtrl = o.resitBayaran && o.resitBayaran.url
-      ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(o.resitBayaran.url)}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>
+      ? `<button class="btn btn-ghost btn-sm" onclick="openResitBayaran('${id}')">🧾 Lihat Resit Bayaran</button>
          <label class="btn btn-ghost btn-sm">Ganti<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>
          <button class="btn btn-ghost btn-sm" onclick="removeResit('${id}')">Buang Resit</button>`
       : `<label class="btn btn-ghost btn-sm">📎 Attach Resit<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>`;
@@ -996,7 +1016,9 @@ function renderKantinBayaran(){
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
         ${resitCtrl}
       </div>`;
-    return expandableItem('bayaran', id, o, bayaranBadge(o.bayaranStatus), detail);
+    const amountLabel = (o.hargaRM > 0) ? formatRM(o.hargaRM) : 'RM —';
+    const badges = `<span class="oi-amount">${amountLabel}</span>${bayaranBadge(o.bayaranStatus)}`;
+    return expandableItem('bayaran', id, o, badges, detail);
   }).join('');
 }
 
@@ -1144,6 +1166,22 @@ function closeResit(){
 }
 document.getElementById('resitModal').addEventListener('click', e => {
   if(e.target.id === 'resitModal') closeResit();
+});
+
+/* Resit bayaran (imej) — papar dalam pop-up modal */
+function openResitBayaran(id){
+  const o = orders[id];
+  if(!o || !o.resitBayaran || !o.resitBayaran.url) return;
+  document.getElementById('resitImg').src = o.resitBayaran.url;
+  document.getElementById('resitImgOpen').href = o.resitBayaran.url;
+  document.getElementById('resitImgModal').classList.remove('hidden');
+}
+function closeResitBayaran(){
+  document.getElementById('resitImgModal').classList.add('hidden');
+  document.getElementById('resitImg').src = '';
+}
+document.getElementById('resitImgModal').addEventListener('click', e => {
+  if(e.target.id === 'resitImgModal') closeResitBayaran();
 });
 
 /* init */
