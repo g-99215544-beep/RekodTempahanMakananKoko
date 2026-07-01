@@ -219,6 +219,29 @@
   .order-note{font-size:12.5px; color:var(--ink-soft); font-style:italic; margin:6px 0;}
   .reject-reason{font-size:12.5px; color:var(--rejected); margin:6px 0; background:var(--rejected-bg); padding:7px 10px; border-radius:8px;}
   .order-card-actions{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+
+  /* ---------- expandable list (accordion) ---------- */
+  .order-item{
+    background:var(--paper); border:1px solid var(--border); border-radius:13px;
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .order-item-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:13px 16px; cursor:pointer; user-select:none; transition:background .15s;
+  }
+  .order-item-head:hover{background:var(--bg-alt);}
+  .order-item.open .order-item-head{background:var(--bg-alt);}
+  .oi-main{min-width:0;}
+  .oi-main h3{font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .oi-sub{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .oi-right{display:flex; align-items:center; gap:8px; flex-shrink:0;}
+  .oi-chevron{color:var(--ink-faint); font-size:13px; transition:transform .18s; line-height:1;}
+  .order-item.open .oi-chevron{transform:rotate(180deg);}
+  .order-item-detail{display:none; padding:2px 16px 16px; border-top:1px solid var(--border);}
+  .order-item.open .order-item-detail{display:block;}
+  .order-item-detail .item-tags{margin-top:12px;}
+  .order-item-detail .order-meta{margin-bottom:2px;}
+
   .empty-state{
     text-align:center; padding:46px 20px; color:var(--ink-soft); font-size:13.5px;
     border:1.5px dashed var(--border); border-radius:14px;
@@ -784,6 +807,29 @@ function itemTagsHtml(items){
   return `<div class="item-tags">${(items||[]).map(it => `<span class="item-tag">${it.kuantiti}× ${escapeHtml(it.nama)}</span>`).join('')}</div>`;
 }
 
+/* ---- senarai boleh kembang (accordion) ---- */
+let openRows = { guru: null, pending: null, bayaran: null };
+function toggleRow(listKey, id){
+  openRows[listKey] = (openRows[listKey] === id) ? null : id;
+  if(listKey === 'guru') renderGuruOrders();
+  else if(listKey === 'pending') renderKantinPending();
+  else if(listKey === 'bayaran') renderKantinBayaran();
+}
+// Bina satu item senarai boleh kembang.
+function expandableItem(listKey, id, o, badges, detailHtml){
+  const open = openRows[listKey] === id;
+  return `<div class="order-item ${open?'open':''}">
+      <div class="order-item-head" onclick="toggleRow('${listKey}','${id}')">
+        <div class="oi-main">
+          <h3>${escapeHtml(o.aktiviti)}</h3>
+          <div class="oi-sub">Diperlukan ${formatTarikh(o.tarikhPerlu)}</div>
+        </div>
+        <div class="oi-right">${badges}<span class="oi-chevron">▾</span></div>
+      </div>
+      <div class="order-item-detail">${detailHtml}</div>
+    </div>`;
+}
+
 function renderGuruOrders(){
   const wrap = document.getElementById('guruOrderList');
   const namaFilter = (document.getElementById('inNamaGuru').value || localStorage.getItem('tempahMakanan_namaGuru') || '').trim().toLowerCase();
@@ -811,19 +857,14 @@ function renderGuruOrders(){
     if(o.status === 'ditolak' && o.sebabTolak){
       rejectHtml = `<div class="reject-reason">Sebab ditolak: ${escapeHtml(o.sebabTolak)}</div>`;
     }
-    return `<div class="order-card">
-      <div class="order-card-top">
-        <div>
-          <h3>${escapeHtml(o.aktiviti)}</h3>
-          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)}</div>
-        </div>
-        <div class="badge-row">${statusBadge(o.status)}${o.status==='disahkan' ? bayaranBadge(o.bayaranStatus) : ''}</div>
-      </div>
+    const badges = `${statusBadge(o.status)}${o.status==='disahkan' ? bayaranBadge(o.bayaranStatus) : ''}`;
+    const detail = `
+      <div class="order-meta">${escapeHtml(o.guruNama)}</div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
       ${rejectHtml}
-      ${actions}
-    </div>`;
+      ${actions}`;
+    return expandableItem('guru', id, o, badges, detail);
   }).join('');
 }
 document.getElementById('inNamaGuru').addEventListener('input', renderGuruOrders);
@@ -842,21 +883,17 @@ function renderKantinPending(){
     wrap.innerHTML = `<div class="empty-state"><strong>Tiada tempahan menunggu</strong>Semua tempahan setakat ini telah diproses.</div>`;
     return;
   }
-  wrap.innerHTML = list.map(([id,o]) => `<div class="order-card">
-      <div class="order-card-top">
-        <div>
-          <h3>${escapeHtml(o.aktiviti)}</h3>
-          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)} · Dihantar ${formatMasaPenuh(o.dicipta)}</div>
-        </div>
-        <div class="badge-row">${statusBadge(o.status)}</div>
-      </div>
+  wrap.innerHTML = list.map(([id,o]) => {
+    const detail = `
+      <div class="order-meta">${escapeHtml(o.guruNama)} · Dihantar ${formatMasaPenuh(o.dicipta)}</div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
       <div class="order-card-actions">
         <button class="btn btn-confirm btn-sm" onclick="confirmOrder('${id}')">✓ Sahkan</button>
         <button class="btn btn-reject btn-sm" onclick="rejectOrder('${id}')">✕ Tolak</button>
-      </div>
-    </div>`).join('');
+      </div>`;
+    return expandableItem('pending', id, o, statusBadge(o.status), detail);
+  }).join('');
 }
 
 function generateResitNo(){
@@ -945,14 +982,8 @@ function renderKantinBayaran(){
          <label class="btn btn-ghost btn-sm">Ganti<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>
          <button class="btn btn-ghost btn-sm" onclick="removeResit('${id}')">Buang Resit</button>`
       : `<label class="btn btn-ghost btn-sm">📎 Attach Resit<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>`;
-    return `<div class="order-card">
-      <div class="order-card-top">
-        <div>
-          <h3>${escapeHtml(o.aktiviti)}</h3>
-          <div class="order-meta">${escapeHtml(o.guruNama)} · Diperlukan ${formatTarikh(o.tarikhPerlu)} · ${escapeHtml(o.resitNo||'')}</div>
-        </div>
-        <div class="badge-row">${bayaranBadge(o.bayaranStatus)}</div>
-      </div>
+    const detail = `
+      <div class="order-meta">${escapeHtml(o.guruNama)} · ${escapeHtml(o.resitNo||'')}</div>
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
       <div class="pay-line">
@@ -964,8 +995,8 @@ function renderKantinBayaran(){
         ${payBtn}
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
         ${resitCtrl}
-      </div>
-    </div>`;
+      </div>`;
+    return expandableItem('bayaran', id, o, bayaranBadge(o.bayaranStatus), detail);
   }).join('');
 }
 
