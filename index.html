@@ -210,8 +210,6 @@
   .badge-pending{background:var(--pending-bg); color:var(--pending);}
   .badge-confirmed{background:var(--confirmed-bg); color:var(--confirmed);}
   .badge-rejected{background:var(--rejected-bg); color:var(--rejected);}
-  .badge-claim-pending{background:var(--claim-pending-bg); color:var(--claim-pending);}
-  .badge-claim-done{background:var(--claim-done-bg); color:var(--claim-done);}
 
   .item-tags{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
   .item-tag{
@@ -805,7 +803,7 @@ function renderGuruOrders(){
     let actions = '';
     if(o.status === 'disahkan'){
       const resitLink = (o.resitBayaran && o.resitBayaran.url)
-        ? `<a class="btn btn-ghost btn-sm" href="${o.resitBayaran.url}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>`
+        ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(o.resitBayaran.url)}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>`
         : '';
       actions = `<div class="order-card-actions"><button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>${resitLink}</div>`;
     }
@@ -888,7 +886,7 @@ function rejectOrder(id){
 }
 
 /* ============================================================
-   KANTIN: REKOD TEMPAHAN (claim tracking)
+   KANTIN: BADGE BAYARAN
    ============================================================ */
 function bayaranBadge(status){
   if(status === 'sudah') return `<span class="badge badge-confirmed">SUDAH DIBAYAR</span>`;
@@ -896,9 +894,9 @@ function bayaranBadge(status){
 }
 
 /* ============================================================
-   KANTIN: BAYARAN (claim / pembayaran kantin)
+   KANTIN: BAYARAN
    ============================================================ */
-// Bayaran: tempahan yang SUDAH diambil — jejak pembayaran unit koko.
+// Bayaran: semua tempahan disahkan — jejak pembayaran unit koko.
 function renderKantinBayaran(){
   const wrap = document.getElementById('kantinBayaranList');
   if(!wrap) return;
@@ -943,7 +941,7 @@ function renderKantinBayaran(){
       ? `<button class="btn btn-unclaim btn-sm" onclick="toggleBayaran('${id}','belum')">↺ Tanda Belum Dibayar</button>`
       : `<button class="btn btn-claim btn-sm" onclick="toggleBayaran('${id}','sudah')">✓ Tanda Sudah Dibayar</button>`;
     const resitCtrl = o.resitBayaran && o.resitBayaran.url
-      ? `<a class="btn btn-ghost btn-sm" href="${o.resitBayaran.url}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>
+      ? `<a class="btn btn-ghost btn-sm" href="${escapeHtml(o.resitBayaran.url)}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>
          <label class="btn btn-ghost btn-sm">Ganti<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>
          <button class="btn btn-ghost btn-sm" onclick="removeResit('${id}')">Buang Resit</button>`
       : `<label class="btn btn-ghost btn-sm">📎 Attach Resit<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>`;
