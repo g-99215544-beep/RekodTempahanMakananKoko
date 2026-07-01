@@ -938,6 +938,11 @@ function renderKantinBayaran(){
     const payBtn = paid
       ? `<button class="btn btn-unclaim btn-sm" onclick="toggleBayaran('${id}','belum')">↺ Tanda Belum Dibayar</button>`
       : `<button class="btn btn-claim btn-sm" onclick="toggleBayaran('${id}','sudah')">✓ Tanda Sudah Dibayar</button>`;
+    const resitCtrl = o.resitBayaran && o.resitBayaran.url
+      ? `<a class="btn btn-ghost btn-sm" href="${o.resitBayaran.url}" target="_blank" rel="noopener">🧾 Lihat Resit Bayaran</a>
+         <label class="btn btn-ghost btn-sm">Ganti<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>
+         <button class="btn btn-ghost btn-sm" onclick="removeResit('${id}')">Buang Resit</button>`
+      : `<label class="btn btn-ghost btn-sm">📎 Attach Resit<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>`;
     return `<div class="order-card">
       <div class="order-card-top">
         <div>
@@ -956,6 +961,7 @@ function renderKantinBayaran(){
       <div class="order-card-actions">
         ${payBtn}
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
+        ${resitCtrl}
       </div>
     </div>`;
   }).join('');
@@ -969,6 +975,40 @@ function saveHarga(id){
   db.ref(`${DB_ROOT}/tempahan/`+id).update({hargaRM: v})
     .then(() => showToast('Nilai RM disimpan.'))
     .catch(err => showToast('Ralat: ' + err.message, true));
+}
+
+function uploadResit(id, input){
+  const file = input.files && input.files[0];
+  if(!file){ return; }
+  if(!file.type.startsWith('image/')){ showToast('Sila pilih fail imej.', true); input.value=''; return; }
+  if(file.size > 5*1024*1024){ showToast('Saiz imej terlalu besar (maksimum 5MB).', true); input.value=''; return; }
+  if(!storage){ showToast('Firebase Storage belum sedia.', true); return; }
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+  const path = `${DB_ROOT}/resit/${id}/${Date.now()}-${safe}`;
+  const ref = storage.ref(path);
+  showToast('Memuat naik resit...');
+  ref.put(file)
+    .then(snap => snap.ref.getDownloadURL())
+    .then(url => db.ref(`${DB_ROOT}/tempahan/${id}`).update({
+      resitBayaran: { url, path, dimuatNaikPada: firebase.database.ServerValue.TIMESTAMP }
+    }))
+    .then(() => showToast('Resit bayaran dimuat naik.'))
+    .catch(err => showToast('Ralat muat naik: ' + err.message, true))
+    .finally(() => { input.value=''; });
+}
+function removeResit(id){
+  const o = orders[id];
+  if(!o || !o.resitBayaran) return;
+  if(!confirm('Buang resit bayaran ini?')) return;
+  const path = o.resitBayaran.path;
+  const clearDb = () => db.ref(`${DB_ROOT}/tempahan/${id}/resitBayaran`).remove()
+    .then(() => showToast('Resit dibuang.'))
+    .catch(err => showToast('Ralat: ' + err.message, true));
+  if(path && storage){
+    storage.ref(path).delete().then(clearDb).catch(clearDb); // buang rekod DB walaupun padam Storage gagal
+  } else {
+    clearDb();
+  }
 }
 
 function toggleBayaran(id, newStatus){
