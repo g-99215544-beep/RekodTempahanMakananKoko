@@ -306,6 +306,40 @@
   }
   .rm-input:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(31,77,58,.12); outline:none;}
 
+  /* ---------- jadual bayaran ---------- */
+  .bayaran-table{
+    width:100%; table-layout:fixed; border-collapse:collapse;
+    background:var(--paper); border:1px solid var(--border);
+    border-radius:13px; overflow:hidden; box-shadow:var(--shadow);
+    font-size:12px;
+  }
+  .bayaran-table th, .bayaran-table td{
+    padding:9px 8px; text-align:left; vertical-align:top;
+    border-bottom:1px solid var(--border);
+  }
+  .bayaran-table thead th{
+    font-size:10.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.03em; color:var(--ink-soft); background:var(--bg-alt);
+  }
+  /* lebar lajur — jumlah 100% supaya muat tanpa scroll mendatar */
+  .bayaran-table col.c-bil{width:8%;}
+  .bayaran-table col.c-tarikh{width:14%;}
+  .bayaran-table col.c-nama{width:24%;}
+  .bayaran-table col.c-program{width:26%;}
+  .bayaran-table col.c-kuan{width:12%;}
+  .bayaran-table col.c-catatan{width:16%;}
+  .bayaran-table td.ell{
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .bayaran-table tr.btr{cursor:pointer;}
+  .bayaran-table tr.btr:hover{background:var(--bg-alt);}
+  .bayaran-table tr.btr.paid, .bayaran-table tr.btr-detail.paid{background:var(--confirmed-bg);}
+  .bayaran-table tr.btr.paid:hover{background:var(--confirmed-bg);}
+  .bayaran-table tr.btr-detail > td{padding:12px 10px;}
+  .bayaran-empty{
+    padding:22px; text-align:center; color:var(--ink-soft); font-size:13px;
+  }
+
   /* ---------- modal / receipt ---------- */
   .modal-backdrop{
     position:fixed; inset:0; background:rgba(43,36,25,.55); backdrop-filter:blur(2px);
@@ -1111,12 +1145,30 @@ function renderKantinBayaran(){
   list.sort((a,b) => (b[1].disahkanPada||0) - (a[1].disahkanPada||0));
 
   if(list.length === 0){
-    wrap.innerHTML = `<div class="empty-state"><strong>Tiada rekod</strong>Tempahan yang disahkan akan muncul di sini untuk jejak bayaran.</div>`;
+    wrap.innerHTML = `<div class="bayaran-empty"><strong>Tiada rekod</strong><br>Tempahan yang disahkan akan muncul di sini untuk jejak bayaran.</div>`;
     return;
   }
 
-  wrap.innerHTML = list.map(([id,o]) => {
+  const rows = list.map(([id,o], idx) => {
     const paid = (o.bayaranStatus||'belum') === 'sudah';
+    const open = openRows.bayaran === id;
+    const bil = idx + 1;
+    const tp = (o.tarikhPerlu||'').split('-');
+    const tarikhPendek = tp.length === 3 ? `${tp[2]}/${tp[1]}` : '-';
+    const qty = (o.items||[]).reduce((s,it) => s + (Number(it.kuantiti)||0), 0);
+    const catatanSel = o.catatan ? escapeHtml(o.catatan) : '–';
+
+    const headRow = `<tr class="btr ${paid?'paid':''} ${open?'open':''}" onclick="toggleRow('bayaran','${id}')">
+        <td>${bil}</td>
+        <td>${tarikhPendek}</td>
+        <td class="ell">${escapeHtml(o.guruNama||'')}</td>
+        <td class="ell">${escapeHtml(o.aktiviti||'')}</td>
+        <td>${qty}</td>
+        <td class="ell">${catatanSel}</td>
+      </tr>`;
+
+    if(!open) return headRow;
+
     const hargaVal = (o.hargaRM > 0) ? Number(o.hargaRM).toFixed(2) : '';
     const payBtn = paid
       ? `<button class="btn btn-unclaim btn-sm" onclick="toggleBayaran('${id}','belum')">↺ Tanda Belum Dibayar</button>`
@@ -1127,7 +1179,7 @@ function renderKantinBayaran(){
          <button class="btn btn-ghost btn-sm" onclick="removeResit('${id}')">Buang Resit</button>`
       : `<label class="btn btn-ghost btn-sm">📎 Attach Resit<input type="file" accept="image/*" style="display:none" onchange="uploadResit('${id}', this)"></label>`;
     const detail = `
-      <div class="order-meta">${escapeHtml(o.guruNama)} · ${escapeHtml(o.resitNo||'')}</div>
+      <div class="order-meta">${escapeHtml(o.guruNama||'')} · ${escapeHtml(o.resitNo||'')} · ${bayaranBadge(o.bayaranStatus)}</div>
       ${sumberLabel(o) ? `<div class="order-sumber">Sumber: ${escapeHtml(sumberLabel(o))}</div>` : ''}
       ${itemTagsHtml(o.items)}
       ${o.catatan ? `<div class="order-note">"${escapeHtml(o.catatan)}"</div>` : ''}
@@ -1141,10 +1193,20 @@ function renderKantinBayaran(){
         <button class="btn btn-ghost btn-sm" onclick="openResit('${id}')">📄 Lihat Resit</button>
         ${resitCtrl}
       </div>`;
-    const amountLabel = (o.hargaRM > 0) ? formatRM(o.hargaRM) : 'RM —';
-    const badges = `<span class="oi-amount">${amountLabel}</span>${bayaranBadge(o.bayaranStatus)}`;
-    return expandableItem('bayaran', id, o, badges, detail);
+    const detailRow = `<tr class="btr-detail ${paid?'paid':''}"><td colspan="6">${detail}</td></tr>`;
+    return headRow + detailRow;
   }).join('');
+
+  wrap.innerHTML = `<table class="bayaran-table">
+      <colgroup>
+        <col class="c-bil"><col class="c-tarikh"><col class="c-nama">
+        <col class="c-program"><col class="c-kuan"><col class="c-catatan">
+      </colgroup>
+      <thead><tr>
+        <th>Bil</th><th>Tarikh</th><th>Nama</th><th>Program</th><th>Kuan.</th><th>Catatan</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 function saveHarga(id){
