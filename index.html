@@ -1158,7 +1158,7 @@ function renderKantinBayaran(){
     const qty = (o.items||[]).reduce((s,it) => s + (Number(it.kuantiti)||0), 0);
     const catatanSel = o.catatan ? escapeHtml(o.catatan) : '–';
 
-    const headRow = `<tr class="btr ${paid?'paid':''} ${open?'open':''}" onclick="toggleRow('bayaran','${id}')">
+    const headRow = `<tr class="btr ${paid?'paid':''}" onclick="toggleRow('bayaran','${id}')">
         <td>${bil}</td>
         <td>${tarikhPendek}</td>
         <td class="ell">${escapeHtml(o.guruNama||'')}</td>
