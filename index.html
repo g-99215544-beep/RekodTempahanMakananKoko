@@ -128,7 +128,8 @@
 
   .field{margin-bottom:14px;}
   .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
-  .field input[type=text], .field input[type=date], .field input[type=time], .field textarea{
+  .field-hint{margin:6px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.4;}
+  .field input[type=text], .field input[type=date], .field input[type=time], .field textarea, .field select{
     width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:9px;
     background:#fff; color:var(--ink); outline:none; transition:.15s;
   }
@@ -400,6 +401,19 @@
         <div class="field">
           <label for="inTarikh">Tarikh Diperlukan</label>
           <input type="date" id="inTarikh">
+        </div>
+        <div class="field">
+          <label for="inSumberBesar">Sumber Perbelanjaan</label>
+          <select id="inSumberBesar" onchange="onSumberBesarChange()">
+            <option value="">— Pilih sumber —</option>
+          </select>
+          <p class="field-hint">Jika anda tidak pasti sumber perbelanjaan mana untuk dipilih, sila rujuk kerani sekolah.</p>
+        </div>
+        <div class="field hidden" id="sumberKecilField">
+          <label for="inSumberKecil">Pecahan</label>
+          <select id="inSumberKecil">
+            <option value="">— Pilih pecahan —</option>
+          </select>
         </div>
 
         <div class="field">
@@ -774,6 +788,39 @@ if(savedNama) document.getElementById('inNamaGuru').value = savedNama;
 // Tiada had tarikh — benarkan tarikh lepas (backdate) untuk simpan rekod lama.
 
 let menuQty = {}; // id -> qty (local draft)
+
+function populateSumberBesar(){
+  const sel = document.getElementById('inSumberBesar');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— Pilih sumber —</option>' +
+    SUMBER_PERBELANJAAN.map(e => `<option value="${escapeHtml(e.besar)}">${escapeHtml(e.besar)}</option>`).join('');
+}
+
+function onSumberBesarChange(){
+  const besar = document.getElementById('inSumberBesar').value;
+  const field = document.getElementById('sumberKecilField');
+  const sel = document.getElementById('inSumberKecil');
+  const entry = sumberEntryByBesar(besar);
+  if(!entry || !entryHasPecahan(entry)){
+    sel.innerHTML = '<option value="">— Pilih pecahan —</option>';
+    sel.value = '';
+    field.classList.add('hidden');
+    return;
+  }
+  let opts = '<option value="">— Pilih pecahan —</option>';
+  if(entry.kumpulan){
+    opts += entry.kumpulan.map(k =>
+      `<optgroup label="${escapeHtml(k.label)}">` +
+      k.pecahan.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('') +
+      `</optgroup>`
+    ).join('');
+  } else {
+    opts += entry.pecahan.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+  }
+  sel.innerHTML = opts;
+  sel.value = '';
+  field.classList.remove('hidden');
+}
 
 function renderMenuPicker(){
   const wrap = document.getElementById('menuPickerList');
@@ -1240,6 +1287,7 @@ document.getElementById('resitImgModal').addEventListener('click', e => {
 
 /* init */
 renderMenuPicker();
+populateSumberBesar();
 renderCustomChips();
 </script>
 </body>
