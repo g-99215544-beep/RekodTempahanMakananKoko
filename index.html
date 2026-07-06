@@ -1016,6 +1016,12 @@ function renderKantinPending(){
 
   document.getElementById('tabBtn-menunggu').textContent = `Menunggu Pengesahan (${list.length})`;
 
+  const menungguBtn = document.getElementById('tabBtn-menunggu');
+  menungguBtn.classList.toggle('hidden', list.length === 0);
+  if(list.length === 0 && currentKantinTab === 'menunggu'){
+    setKantinTab('bayaran');
+  }
+
   if(list.length === 0){
     wrap.innerHTML = `<div class="empty-state"><strong>Tiada tempahan menunggu</strong>Semua tempahan setakat ini telah diproses.</div>`;
     return;
