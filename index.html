@@ -874,10 +874,19 @@ function submitOrder(){
   const aktiviti = document.getElementById('inAktiviti').value.trim();
   const tarikh = document.getElementById('inTarikh').value;
   const catatan = document.getElementById('inCatatan').value.trim();
+  const sumberBesar = document.getElementById('inSumberBesar').value;
+  const sumberKecilEl = document.getElementById('inSumberKecil');
+  const sumberKecil = sumberKecilEl.value;
 
   if(!namaGuru){ showToast('Sila isi nama guru.', true); return; }
   if(!aktiviti){ showToast('Sila isi aktiviti / unit kokurikulum.', true); return; }
   if(!tarikh){ showToast('Sila pilih tarikh diperlukan.', true); return; }
+
+  if(!sumberBesar){ showToast('Sila pilih sumber perbelanjaan.', true); return; }
+  const sumberEntry = sumberEntryByBesar(sumberBesar);
+  if(entryHasPecahan(sumberEntry) && !sumberKecil){
+    showToast('Sila pilih pecahan sumber perbelanjaan.', true); return;
+  }
 
   const items = [];
   Object.entries(menuQty).forEach(([id, qty]) => {
@@ -892,6 +901,8 @@ function submitOrder(){
   const order = {
     guruNama: namaGuru,
     aktiviti: aktiviti,
+    sumberBesar: sumberBesar,
+    sumberKecil: sumberKecil,
     tarikhPerlu: tarikh,
     items: items,
     catatan: catatan,
@@ -907,6 +918,8 @@ function submitOrder(){
       document.getElementById('inAktiviti').value = '';
       document.getElementById('inTarikh').value = '';
       document.getElementById('inCatatan').value = '';
+      document.getElementById('inSumberBesar').value = '';
+      onSumberBesarChange();
       menuQty = {};
       customDraft = [];
       renderMenuPicker();
