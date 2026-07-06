@@ -666,7 +666,7 @@ function sumberEntryByBesar(besar){
 }
 function entryHasPecahan(entry){
   if(!entry) return false;
-  if(entry.kumpulan) return entry.kumpulan.some(k => k.pecahan.length > 0);
+  if(entry.kumpulan) return entry.kumpulan.some(k => (k.pecahan || []).length > 0);
   return (entry.pecahan || []).length > 0;
 }
 function sumberLabel(o){
