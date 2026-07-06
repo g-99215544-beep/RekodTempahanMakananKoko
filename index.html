@@ -604,6 +604,60 @@ let currentKantinTab = 'menunggu';
 let customDraft = [];    // [{nama, kuantiti}]
 let kantinPin = APP_CONFIG.defaultPin;
 
+/* ============================================================
+   SUMBER PERBELANJAAN (rujukan Excel PCG 2026 + 3 tambahan)
+   Senarai tetap dalam kod. Kemas kini di sini bila peruntukan berubah.
+   ============================================================ */
+const SUMBER_PERBELANJAAN = [
+  {
+    besar: "PCG MATA PELAJARAN",
+    kumpulan: [
+      { label: "Teras 1", pecahan: [
+        "SAINS", "MATEMATIK", "BAHASA INGGERIS", "BAHASA CINA KOMUNIKASI",
+        "BAHASA ARAB", "PENDIDIKAN ISLAM", "PENDIDIKAN MORAL", "BAHASA MELAYU"
+      ]},
+      { label: "Teras 2", pecahan: [
+        "REKA BENTUK & TEKNOLOGI", "PENDIDIKAN SENI VISUAL", "PENDIDIKAN MUZIK",
+        "PENDIDIKAN JASMANI DAN KESIHATAN", "SEJARAH - SPK1 / 2021",
+        "KERTAS UJIAN DALAMAN - SPK1 / 2021",
+        "KEGIATAN PENDIDIKAN ISLAM / PENDIDIKAN MORAL - SPK1 / 2021"
+      ]}
+    ]
+  },
+  { besar: "PCG BUKAN MATA PELAJARAN", pecahan: [
+    "PUSAT SUMBER SEKOLAH", "BIMBINGAN DAN KAUNSELING", "LPBT",
+    "YURAN KHAS SEKOLAH - SPK1 / 2021"
+  ]},
+  { besar: "PRASEKOLAH", pecahan: [
+    "PCG PRASEKOLAH", "BANTUAN MAKANAN PRASEKOLAH (BMP)",
+    "BANTUAN KOKURIKULUM PRASEKOLAH (BKKP)"
+  ]},
+  { besar: "BANTUAN SUKAN", pecahan: [
+    "BANTUAN SUKAN SEKOLAH - SPK1 / 2021 (BSS)",
+    "SUKAN TAHUNAN SEKOLAH - SPK1 / 2021 (BSS)"
+  ]},
+  { besar: "BANTUAN KOKURIKULUM", pecahan: [
+    "BANTUAN KOKURIKULUM SEKOLAH - SPK1 / 2021 (BKKS)",
+    "KOKURIKULUM TAMBAHAN - SPK1 / 2021 (BKKS)"
+  ]},
+  { besar: "RANCANGAN MAKANAN TAMBAHAN - RMT", pecahan: [] },
+  { besar: "KEM BESTARI SOLAT - KBS", pecahan: [] },
+  { besar: "PENGANJURAN KEJOHANAN", pecahan: [] }
+];
+
+function sumberEntryByBesar(besar){
+  return SUMBER_PERBELANJAAN.find(e => e.besar === besar);
+}
+function entryHasPecahan(entry){
+  if(!entry) return false;
+  if(entry.kumpulan) return entry.kumpulan.some(k => k.pecahan.length > 0);
+  return (entry.pecahan || []).length > 0;
+}
+function sumberLabel(o){
+  if(!o || !o.sumberBesar) return "";
+  return o.sumberKecil ? `${o.sumberBesar} — ${o.sumberKecil}` : o.sumberBesar;
+}
+
 const MONTHS = ["Januari","Februari","Mac","April","Mei","Jun","Julai","Ogos","September","Oktober","November","Disember"];
 
 function formatTarikh(dateStr){
