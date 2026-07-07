@@ -115,6 +115,7 @@
 
   /* ---------- guru layout ---------- */
   .guru-grid{display:grid; grid-template-columns:380px 1fr; gap:22px; align-items:start;}
+  .guru-grid > *{min-width:0;}
   @media (max-width:860px){ .guru-grid{grid-template-columns:1fr;} }
 
   .panel{
@@ -130,7 +131,7 @@
   .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
   .field-hint{margin:6px 0 0; font-size:11.5px; color:var(--ink-soft); line-height:1.4;}
   .field input[type=text], .field input[type=date], .field input[type=time], .field textarea, .field select{
-    width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:9px;
+    width:100%; min-width:0; padding:10px 12px; border:1px solid var(--border); border-radius:9px;
     background:#fff; color:var(--ink); outline:none; transition:.15s;
   }
   .field input:focus, .field textarea:focus, .field select:focus{border-color:var(--primary); box-shadow:0 0 0 3px rgba(31,77,58,.12);}
