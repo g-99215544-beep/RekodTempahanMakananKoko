@@ -439,7 +439,7 @@
           <input type="date" id="inTarikh">
         </div>
         <div class="field">
-          <label for="inSumberBesar">Sumber Perbelanjaan</label>
+          <label for="inSumberBesar">Sumber Perbelanjaan (pilihan)</label>
           <select id="inSumberBesar" onchange="onSumberBesarChange()">
             <option value="">— Pilih sumber —</option>
           </select>
@@ -919,9 +919,9 @@ function submitOrder(){
   if(!aktiviti){ showToast('Sila isi aktiviti / unit kokurikulum.', true); return; }
   if(!tarikh){ showToast('Sila pilih tarikh diperlukan.', true); return; }
 
-  if(!sumberBesar){ showToast('Sila pilih sumber perbelanjaan.', true); return; }
+  // Sumber perbelanjaan pilihan (tak wajib). Jika tajuk besar dipilih & ada pecahan, pecahan wajib.
   const sumberEntry = sumberEntryByBesar(sumberBesar);
-  if(entryHasPecahan(sumberEntry) && !sumberKecil){
+  if(sumberBesar && entryHasPecahan(sumberEntry) && !sumberKecil){
     showToast('Sila pilih pecahan sumber perbelanjaan.', true); return;
   }
 
